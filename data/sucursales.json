@@ -1,0 +1,44 @@
+[
+  {
+    "id": "1776785828139-6l3rtmlnkh4",
+    "sucursal": "Chumbicha",
+    "fecha": "2026-04-19T18:00",
+    "trafico": 830,
+    "conexiones": 333
+  },
+  {
+    "id": "1776785843592-doklsl2urbe",
+    "sucursal": "El Rodeo",
+    "fecha": "2026-04-19T18:00",
+    "trafico": 460,
+    "conexiones": 186
+  },
+  {
+    "id": "1776785856971-yaz9jsdfrks",
+    "sucursal": "Fiambalá",
+    "fecha": "2026-04-19T18:00",
+    "trafico": 520,
+    "conexiones": 212
+  },
+  {
+    "id": "1776785871206-mcru63019sg",
+    "sucursal": "La Puerta",
+    "fecha": "2026-04-19T18:00",
+    "trafico": 350,
+    "conexiones": 92
+  },
+  {
+    "id": "1776785888902-cx0xi67nd7o",
+    "sucursal": "Tinogasta",
+    "fecha": "2026-04-19T18:00",
+    "trafico": 670,
+    "conexiones": 265
+  },
+  {
+    "id": "1776785944072-cr3i3ongv4",
+    "sucursal": "VV",
+    "fecha": "2026-04-19T18:00",
+    "trafico": 6408,
+    "conexiones": 2750
+  }
+]
