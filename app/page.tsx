@@ -1,7 +1,7 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileDown, BarChart2, PlusCircle, Sheet, Users } from "lucide-react";
+import { FileDown, BarChart2, PlusCircle, Sheet, ChevronDown, Tv, BarChart3, History } from "lucide-react";
 import SummaryCards from "./components/SummaryCards";
 import EvolutionChart from "./components/EvolutionChart";
 import TotalesChart from "./components/TotalesChart";
@@ -15,7 +15,6 @@ import GoalsPanel from "./components/GoalsPanel";
 import RankingTable from "./components/RankingTable";
 import HistoryPanel from "./components/HistoryPanel";
 import ThemeToggle from "./components/ThemeToggle";
-import DuplicadosView from "./components/DuplicadosView";
 import LicenciasView from "./components/LicenciasView";
 import SucursalesView from "./components/SucursalesView";
 import Image from "next/image";
@@ -35,9 +34,14 @@ function Home() {
   const [activeTab, setActiveTab] = useState<Tab>((searchParams.get("tab") as Tab) ?? "graficos");
   const [showModal, setShowModal] = useState(false);
   const [editRow, setEditRow] = useState<DataRow | null>(null);
-  const [showDuplicados, setShowDuplicados] = useState(false);
+  const [showServiceView, setShowServiceView] = useState(false);
   const [showLicencias, setShowLicencias] = useState(false);
   const [showSucursales, setShowSucursales] = useState(false);
+  const [showTVMenu, setShowTVMenu] = useState(false);
+  const [showReportesMenu, setShowReportesMenu] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const tvRef = useRef<HTMLDivElement>(null);
+  const reportesRef = useRef<HTMLDivElement>(null);
   const [selectedOrgs, setSelectedOrgs] = useState<string[]>(
     searchParams.get("orgs") ? searchParams.get("orgs")!.split(",") : []
   );
@@ -88,12 +92,22 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowDuplicados(false); setShowLicencias(false); setShowSucursales(false); };
-  const goTo = (view: "duplicados" | "licencias" | "sucursales") => {
-    setShowDuplicados(view === "duplicados");
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); };
+  const goTo = (view: "licencias" | "sucursales") => {
     setShowLicencias(view === "licencias");
     setShowSucursales(view === "sucursales");
+    setShowTVMenu(false);
   };
+
+  // Cerrar dropdowns al hacer click afuera
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (tvRef.current && !tvRef.current.contains(e.target as Node)) setShowTVMenu(false);
+      if (reportesRef.current && !reportesRef.current.contains(e.target as Node)) setShowReportesMenu(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const toggleOrg = (org: string) => {
     setSelectedOrgs((prev) =>
@@ -137,14 +151,17 @@ function Home() {
     setSelectedOrgs([]);
   };
 
+  const menuItem = "flex items-center gap-2.5 w-full px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/60 hover:text-white transition-colors rounded-lg";
+
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-screen-xl mx-auto px-6 py-2 flex items-center justify-between gap-4">
-          {/* Logo + Título */}
-          <div className="flex items-center gap-3">
-            <Image src="/ultranet.png" alt="Ultranet" width={120} height={32} className="opacity-80 object-contain cursor-pointer" onClick={goHome} />
+        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+
+          {/* Logo */}
+          <div className="flex items-center gap-3 cursor-pointer" onClick={goHome}>
+            <Image src="/ultranet.png" alt="Ultranet" width={120} height={32} className="opacity-80 object-contain" />
             <div className="w-px h-7 bg-slate-700" />
             <div>
               <h1 className="text-base font-bold tracking-tight leading-tight">GOTV Dashboard</h1>
@@ -152,101 +169,97 @@ function Home() {
             </div>
           </div>
 
-          {/* Botones */}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Nav */}
+          <nav className="flex items-center gap-1">
+
+            {/* TV dropdown */}
+            <div ref={tvRef} className="relative">
+              <button
+                onClick={() => { setShowTVMenu(v => !v); setShowReportesMenu(false); }}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  showTVMenu || showLicencias || showSucursales || showServiceView
+                    ? "bg-slate-700 text-white"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <Tv size={15} /> TV
+                <ChevronDown size={13} className={`transition-transform ${showTVMenu ? "rotate-180" : ""}`} />
+              </button>
+
+              {showTVMenu && (
+                <div className="absolute left-0 top-full mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
+                  <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Servicio</p>
+                  {(["GOTV", "ViewTV"] as Servicio[]).map(s => (
+                    <button key={s} onClick={() => { handleServicioChange(s); setShowLicencias(false); setShowSucursales(false); setShowServiceView(true); setShowTVMenu(false); }}
+                      className={`${menuItem} ${servicio === s ? (s === "GOTV" ? "text-purple-400 bg-purple-900/20" : "text-cyan-400 bg-cyan-900/20") : ""}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s === "GOTV" ? "bg-purple-500" : "bg-cyan-400"}`} />
+                      {s}
+                      {servicio === s && <span className="ml-auto text-xs opacity-50">activo</span>}
+                    </button>
+                  ))}
+
+                  <div className="border-t border-slate-800 my-1" />
+                  <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Vistas</p>
+                  <button onClick={() => goTo("licencias")} className={menuItem}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-indigo-500" /> Licencias
+                  </button>
+                  <button onClick={() => goTo("sucursales")} className={menuItem}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" /> Monitoreo
+                  </button>
+
+                  <div className="border-t border-slate-800 my-1" />
+                  <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Acciones</p>
+                  <button onClick={() => { setShowHistory(true); setShowTVMenu(false); }} className={menuItem}>
+                    <History size={14} className="text-slate-400 flex-shrink-0" /> Historial de cambios
+                  </button>
+                  {hasData && <>
+                    <button onClick={() => { exportToExcel(filteredRows, filteredOrgStats, servicio); setShowTVMenu(false); }} className={menuItem}>
+                      <Sheet size={14} className="text-teal-400 flex-shrink-0" /> Exportar Excel
+                    </button>
+                    <button onClick={() => { exportToPDF(filteredRows, filteredOrgStats, servicio); setShowTVMenu(false); }} className={menuItem}>
+                      <FileDown size={14} className="text-emerald-400 flex-shrink-0" /> Exportar PDF
+                    </button>
+                  </>}
+                </div>
+              )}
+            </div>
+
+            {/* Reportes dropdown */}
+            <div ref={reportesRef} className="relative">
+              <button
+                onClick={() => { setShowReportesMenu(v => !v); setShowTVMenu(false); }}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  showReportesMenu ? "bg-slate-700 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <BarChart3 size={15} /> Reportes
+                <ChevronDown size={13} className={`transition-transform ${showReportesMenu ? "rotate-180" : ""}`} />
+              </button>
+              {showReportesMenu && (
+                <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 px-4 py-5 text-center">
+                  <p className="text-slate-500 text-sm">Próximamente</p>
+                </div>
+              )}
+            </div>
+          </nav>
+
+          {/* Derecha */}
+          <div className="flex items-center gap-2">
             <ThemeToggle />
-            <HistoryPanel onRestored={loadData} />
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
             >
-              <PlusCircle size={15} />
-              Cargar datos
+              <PlusCircle size={15} /> Cargar datos
             </button>
-            <button
-              onClick={() => goTo("duplicados")}
-              className="flex items-center gap-1.5 bg-rose-700 hover:bg-rose-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <Users size={15} />
-              Duplicados
-            </button>
-            {hasData && (
-              <>
-                <button
-                  onClick={() => exportToExcel(filteredRows, filteredOrgStats, servicio)}
-                  className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Sheet size={15} />
-                  Excel
-                </button>
-                <button
-                  onClick={() => exportToPDF(filteredRows, filteredOrgStats, servicio)}
-                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <FileDown size={15} />
-                  PDF
-                </button>
-              </>
-            )}
           </div>
-        </div>
-
-        {/* Selector de servicio + universo % */}
-        <div className="max-w-screen-xl mx-auto px-6 pb-2 flex items-center gap-3 flex-wrap">
-          {(["GOTV", "ViewTV"] as Servicio[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => handleServicioChange(s)}
-              className={`px-5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
-                servicio === s
-                  ? s === "GOTV"
-                    ? "bg-purple-700 border-purple-600 text-white"
-                    : "bg-cyan-500 border-cyan-400 text-white"
-                  : "border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-          <button
-            onClick={() => goTo("licencias")}
-            className="px-5 py-1.5 rounded-full text-sm font-semibold border border-indigo-700 text-indigo-400 hover:bg-indigo-900/40 hover:border-indigo-500 hover:text-indigo-300 transition-colors"
-          >
-            Licencias
-          </button>
-          <button
-            onClick={() => goTo("sucursales")}
-            className="px-5 py-1.5 rounded-full text-sm font-semibold border border-sky-700 text-sky-400 hover:bg-sky-900/40 hover:border-sky-500 hover:text-sky-300 transition-colors"
-          >
-            Monitoreo
-          </button>
-          {universoTotal > 0 && (
-            <>
-              <div className="w-px h-5 bg-slate-700 mx-1" />
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-xs font-medium">
-                  <span className="text-slate-500 w-10">STB</span>
-                  <span className="text-slate-400">GOTV</span>
-                  <span className="text-purple-400 font-bold ml-1">{gotvStbPct}%</span>
-                  <span className="text-slate-600 mx-0.5">/</span>
-                  <span className="text-slate-400">ViewTV</span>
-                  <span className="text-cyan-400 font-bold ml-1">{viewtvStbPct}%</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-xs font-medium">
-                  <span className="text-slate-500 w-10">Móvil</span>
-                  <span className="text-slate-400">GOTV</span>
-                  <span className="text-purple-400 font-bold ml-1">{gotvMovilPct}%</span>
-                  <span className="text-slate-600 mx-0.5">/</span>
-                  <span className="text-slate-400">ViewTV</span>
-                  <span className="text-cyan-400 font-bold ml-1">{viewtvMovilPct}%</span>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </header>
 
-      {showDuplicados && <DuplicadosView onClose={goHome} />}
+      {/* Historial flotante */}
+      <HistoryPanel open={showHistory} onClose={() => setShowHistory(false)} onRestored={loadData} />
+
       {showLicencias && (
         <LicenciasView
           gotvStb={gotvLast.stb}
@@ -263,8 +276,16 @@ function Home() {
         />
       )}
 
-      <main className={`max-w-screen-xl mx-auto px-6 py-8 space-y-8 ${showDuplicados || showLicencias || showSucursales ? "hidden" : ""}`}>
-        {hasData && (
+      <main className={`max-w-screen-xl mx-auto px-6 py-8 space-y-8 ${showLicencias || showSucursales ? "hidden" : ""}`}>
+
+        {/* ── Dashboard (placeholder) ── */}
+        <section className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-8 text-center">
+          <BarChart2 size={36} className="mx-auto mb-3 text-slate-600" />
+          <h2 className="text-slate-400 font-semibold text-base mb-1">Dashboard</h2>
+          <p className="text-slate-600 text-sm">Próximamente — panel de resumen general</p>
+        </section>
+
+        {showServiceView && hasData && (
           <>
             {/* Filtro de organizaciones */}
             <section>
@@ -399,7 +420,7 @@ function Home() {
           </>
         )}
 
-        {!hasData && (
+        {showServiceView && !hasData && (
           <div className="text-center py-24 text-slate-600">
             <BarChart2 size={52} className="mx-auto mb-4 opacity-20" />
             <p className="text-lg">Sin datos para {servicio}</p>

@@ -15,6 +15,8 @@ interface SucursalRecord {
   fecha: string; // YYYY-MM-DDTHH:MM
   trafico: number; // Mbps
   conexiones: number;
+  dispositivos?: number;
+  descripcion?: string;
 }
 
 type ChartRow = { fecha: string; [key: string]: string | number | undefined };
@@ -93,6 +95,8 @@ export default function SucursalesView({
   const [fFecha, setFFecha]              = useState(nowDatetime);
   const [fTrafico, setFTrafico]          = useState("");
   const [fConexiones, setFConexiones]    = useState("");
+  const [fDispositivos, setFDispositivos] = useState("");
+  const [fDescripcion, setFDescripcion]  = useState("");
   const [fError, setFError]              = useState("");
 
   // ── Load: API first, localStorage as fallback ──────────────────────────────
@@ -164,7 +168,8 @@ export default function SucursalesView({
   // ── Form helpers ───────────────────────────────────────────────────────────
   const openNew = () => {
     setEditingId(null);
-    setFSucursal(""); setFFecha(nowDatetime()); setFTrafico(""); setFConexiones(""); setFError("");
+    setFSucursal(""); setFFecha(nowDatetime()); setFTrafico(""); setFConexiones("");
+    setFDispositivos(""); setFDescripcion(""); setFError("");
     setShowForm(true);
   };
 
@@ -174,13 +179,16 @@ export default function SucursalesView({
     setFFecha(r.fecha);
     setFTrafico(String(r.trafico));
     setFConexiones(String(r.conexiones));
+    setFDispositivos(r.dispositivos != null ? String(r.dispositivos) : "");
+    setFDescripcion(r.descripcion ?? "");
     setFError("");
     setShowForm(true);
   };
 
   const closeForm = () => {
     setShowForm(false); setEditingId(null);
-    setFSucursal(""); setFTrafico(""); setFConexiones(""); setFError("");
+    setFSucursal(""); setFTrafico(""); setFConexiones("");
+    setFDispositivos(""); setFDescripcion(""); setFError("");
   };
 
   // ── Add / update record ────────────────────────────────────────────────────
@@ -194,10 +202,13 @@ export default function SucursalesView({
     if (isNaN(trafico) || trafico <= 0 || isNaN(conexiones) || conexiones <= 0) {
       setFError("Tráfico y conexiones deben ser números positivos."); return;
     }
+    const dispositivos = fDispositivos ? parseInt(fDispositivos, 10) : undefined;
+    const descripcion  = fDescripcion.trim() || undefined;
+
     if (editingId) {
       saveRecords(records.map(r =>
         r.id === editingId
-          ? { ...r, sucursal: fSucursal.trim(), fecha: fFecha, trafico, conexiones }
+          ? { ...r, sucursal: fSucursal.trim(), fecha: fFecha, trafico, conexiones, dispositivos, descripcion }
           : r
       ));
     } else {
@@ -207,6 +218,8 @@ export default function SucursalesView({
         fecha: fFecha,
         trafico,
         conexiones,
+        dispositivos,
+        descripcion,
       }]);
     }
     closeForm();
@@ -404,6 +417,23 @@ export default function SucursalesView({
                   el: (
                     <input type="number" min="0" step="1" value={fConexiones}
                       onChange={e => setFConexiones(e.target.value)} placeholder="Ej: 120"
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500" />
+                  ),
+                },
+                {
+                  label: "Dispositivos activos",
+                  el: (
+                    <input type="number" min="0" step="1" value={fDispositivos}
+                      onChange={e => setFDispositivos(e.target.value)} placeholder="Ej: 850"
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500" />
+                  ),
+                },
+                {
+                  label: "Descripción / motivo del pico",
+                  el: (
+                    <input type="text" value={fDescripcion}
+                      onChange={e => setFDescripcion(e.target.value)}
+                      placeholder="Ej: Partido de fútbol, evento especial…"
                       className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500" />
                   ),
                 },
@@ -650,6 +680,8 @@ export default function SucursalesView({
                       <th className="py-3 px-5 text-left">Fecha</th>
                       <th className="py-3 px-5 text-right">Tráfico (Mbps)</th>
                       <th className="py-3 px-5 text-right">Conexiones</th>
+                      <th className="py-3 px-5 text-right">Dispositivos</th>
+                      <th className="py-3 px-5 text-left">Descripción</th>
                       <th className="py-3 px-5 text-center">Alerta</th>
                       <th className="py-3 px-5 text-center" />
                     </tr>
@@ -667,6 +699,12 @@ export default function SucursalesView({
                           </td>
                           <td className="py-3 px-5 text-right font-mono text-slate-300">
                             {r.conexiones.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-5 text-right font-mono text-slate-300">
+                            {r.dispositivos != null ? r.dispositivos.toLocaleString() : <span className="text-slate-600">—</span>}
+                          </td>
+                          <td className="py-3 px-5 text-sm text-slate-400 max-w-[200px] truncate" title={r.descripcion}>
+                            {r.descripcion || <span className="text-slate-600">—</span>}
                           </td>
                           <td className="py-3 px-5 text-center">
                             {isAlert && <AlertTriangle size={14} className="text-amber-400 mx-auto" />}
@@ -688,7 +726,7 @@ export default function SucursalesView({
                     })}
                     {tableRecords.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-10 text-center text-slate-600">
+                        <td colSpan={8} className="py-10 text-center text-slate-600">
                           Sin registros con los filtros seleccionados.
                         </td>
                       </tr>
