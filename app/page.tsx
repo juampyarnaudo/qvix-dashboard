@@ -18,6 +18,7 @@ import ThemeToggle from "./components/ThemeToggle";
 import LicenciasView from "./components/LicenciasView";
 import SucursalesView from "./components/SucursalesView";
 import Image from "next/image";
+import ClientesTVDashboard from "./components/ClientesTVDashboard";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { exportToPDF } from "./lib/exportPDF";
 import { exportToExcel } from "./lib/exportExcel";
@@ -278,12 +279,8 @@ function Home() {
 
       <main className={`max-w-screen-xl mx-auto px-6 py-8 space-y-8 ${showLicencias || showSucursales ? "hidden" : ""}`}>
 
-        {/* ── Dashboard (placeholder) ── */}
-        <section className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-8 text-center">
-          <BarChart2 size={36} className="mx-auto mb-3 text-slate-600" />
-          <h2 className="text-slate-400 font-semibold text-base mb-1">Dashboard</h2>
-          <p className="text-slate-600 text-sm">Próximamente — panel de resumen general</p>
-        </section>
+        {/* ── Dashboard principal ── */}
+        <ClientesTVDashboard />
 
         {showServiceView && hasData && (
           <>
