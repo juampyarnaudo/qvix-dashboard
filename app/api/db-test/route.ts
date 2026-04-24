@@ -1,4 +1,4 @@
-import sql from "mssql";
+import * as sql from "mssql";
 import { NextResponse } from "next/server";
 
 const config: sql.config = {
@@ -17,7 +17,7 @@ export async function GET() {
   try {
     await sql.connect(config);
     const result = await sql.query("SELECT DB_NAME() AS base, GETDATE() AS fecha");
-    await sql.close();
+    await (sql as any).close();
     return NextResponse.json({ ok: true, data: result.recordset[0] });
   } catch (err: unknown) {
     return NextResponse.json(

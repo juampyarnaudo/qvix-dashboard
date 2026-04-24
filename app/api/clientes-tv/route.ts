@@ -220,7 +220,7 @@ export async function GET(req: NextRequest) {
     const totalTV = Number(global.total_tv);
     const totalClientes = Number(global.total_clientes);
 
-    const sucursales = sucursalRes.recordset.map((row) => ({
+    const sucursales = sucursalRes.recordset.map((row: any) => ({
       cod_sucursal:  row.cod_sucursal,
       nombre:        SUCURSALES[row.cod_sucursal] ?? `Sucursal ${row.cod_sucursal}`,
       total_clientes: Number(row.total_clientes),

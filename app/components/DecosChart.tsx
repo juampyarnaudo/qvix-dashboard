@@ -86,7 +86,7 @@ function CategoryChart({
             <LabelList
               dataKey="cantidad"
               position="right"
-              formatter={(v: number) => fmt(v)}
+              formatter={(v: any) => fmt(Number(v) || 0)}
               style={{ fill: "#94a3b8", fontSize: 11 }}
             />
           </Bar>

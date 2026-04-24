@@ -113,7 +113,7 @@ export default function ClientesTVDashboard() {
       {/* Header del dashboard */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">Dashboard Clientes TV</h2>
+          <h2 className="text-xl font-bold text-white">Dashboard Clientes</h2>
           <p className="text-slate-400 text-sm mt-0.5">Datos en tiempo real desde el ERP</p>
         </div>
         <div className="flex items-center gap-3">

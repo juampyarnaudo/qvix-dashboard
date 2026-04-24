@@ -165,8 +165,7 @@ function Home() {
             <Image src="/ultranet.png" alt="Ultranet" width={120} height={32} className="opacity-80 object-contain" />
             <div className="w-px h-7 bg-slate-700" />
             <div>
-              <h1 className="text-base font-bold tracking-tight leading-tight">GOTV Dashboard</h1>
-              <p className="text-xs text-slate-400 leading-tight">Seguimiento de usuarios STB y Móvil</p>
+              <h1 className="text-base font-bold tracking-tight leading-tight">Dashboard</h1>
             </div>
           </div>
 
@@ -238,8 +237,31 @@ function Home() {
                 <ChevronDown size={13} className={`transition-transform ${showReportesMenu ? "rotate-180" : ""}`} />
               </button>
               {showReportesMenu && (
-                <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 px-4 py-5 text-center">
-                  <p className="text-slate-500 text-sm">Próximamente</p>
+                <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
+                  {[
+                    { label: "Reclamos", color: "bg-rose-500" },
+                    { label: "Instalaciones", color: "bg-amber-400" },
+                    { label: "Mapa", color: "bg-emerald-500" },
+                  ].map(({ label, color }) => (
+                    <button key={label} className={`${menuItem} opacity-50 cursor-not-allowed`} disabled>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+                      {label}
+                      <span className="ml-auto text-xs text-slate-600">pronto</span>
+                    </button>
+                  ))}
+
+                  <div className="border-t border-slate-800 my-1" />
+                  <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Stock</p>
+                  {[
+                    { label: "Fuentes", color: "bg-sky-400" },
+                    { label: "Controles", color: "bg-violet-400" },
+                  ].map(({ label, color }) => (
+                    <button key={label} className={`${menuItem} opacity-50 cursor-not-allowed`} disabled>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+                      {label}
+                      <span className="ml-auto text-xs text-slate-600">pronto</span>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -279,8 +301,8 @@ function Home() {
 
       <main className={`max-w-screen-xl mx-auto px-6 py-8 space-y-8 ${showLicencias || showSucursales ? "hidden" : ""}`}>
 
-        {/* ── Dashboard principal ── */}
-        <ClientesTVDashboard />
+        {/* ── Dashboard principal — solo en home ── */}
+        {!showServiceView && <ClientesTVDashboard />}
 
         {showServiceView && hasData && (
           <>

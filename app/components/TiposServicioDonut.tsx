@@ -67,8 +67,8 @@ export default function TiposServicioDonut({ tipos }: Props) {
                   fontSize: 12,
                 }}
                 labelStyle={{ color: "#94a3b8" }}
-                formatter={(value: number, name: string) => [
-                  `${fmt(value)} (${total > 0 ? ((value / total) * 100).toFixed(1) : 0}%)`,
+                formatter={(value: any, name: any) => [
+                  `${fmt(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`,
                   name,
                 ]}
               />
