@@ -19,6 +19,7 @@ import LicenciasView from "./components/LicenciasView";
 import SucursalesView from "./components/SucursalesView";
 import Image from "next/image";
 import ClientesTVDashboard from "./components/ClientesTVDashboard";
+import MapaView from "./components/MapaView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { exportToPDF } from "./lib/exportPDF";
 import { exportToExcel } from "./lib/exportExcel";
@@ -40,6 +41,7 @@ function Home() {
   const [showSucursales, setShowSucursales] = useState(false);
   const [showTVMenu, setShowTVMenu] = useState(false);
   const [showReportesMenu, setShowReportesMenu] = useState(false);
+  const [showMapa, setShowMapa] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const tvRef = useRef<HTMLDivElement>(null);
   const reportesRef = useRef<HTMLDivElement>(null);
@@ -93,7 +95,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     setShowLicencias(view === "licencias");
     setShowSucursales(view === "sucursales");
@@ -239,11 +241,15 @@ function Home() {
               {showReportesMenu && (
                 <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
                   {[
-                    { label: "Reclamos", color: "bg-rose-500" },
-                    { label: "Instalaciones", color: "bg-amber-400" },
-                    { label: "Mapa", color: "bg-emerald-500" },
-                  ].map(({ label, color }) => (
-                    <button key={label} className={`${menuItem} opacity-50 cursor-not-allowed`} disabled>
+                    { label: "Reclamos", color: "bg-rose-500", disabled: true },
+                    { label: "Instalaciones", color: "bg-amber-400", disabled: true },
+                    { label: "Mapa", color: "bg-emerald-500", disabled: false },
+                  ].map(({ label, color, disabled }) => (
+                    <button key={label}
+                      className={`${menuItem} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                      disabled={disabled}
+                      onClick={!disabled && label === "Mapa" ? () => { setShowMapa(true); setShowReportesMenu(false); } : undefined}
+                    >
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
                       {label}
                       <span className="ml-auto text-xs text-slate-600">pronto</span>
@@ -299,7 +305,9 @@ function Home() {
         />
       )}
 
-      <main className={`max-w-screen-xl mx-auto px-6 py-8 space-y-8 ${showLicencias || showSucursales ? "hidden" : ""}`}>
+      {showMapa && <MapaView onClose={goHome} />}
+
+      <main className={`max-w-screen-xl mx-auto px-6 py-8 space-y-8 ${showLicencias || showSucursales || showMapa ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && <ClientesTVDashboard />}
