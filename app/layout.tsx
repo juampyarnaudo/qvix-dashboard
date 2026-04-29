@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GOTV Dashboard",
-  description: "Seguimiento de usuarios STB y Móvil",
+  title: "Ultranet Analytics",
+  description: "Plataforma de analítica y toma de decisiones",
 };
 
 export default function RootLayout({

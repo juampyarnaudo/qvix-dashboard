@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileDown, BarChart2, PlusCircle, Sheet, ChevronDown, Tv, BarChart3, History } from "lucide-react";
+import { FileDown, BarChart2, PlusCircle, Sheet, ChevronDown, Tv, BarChart3, History, LogOut } from "lucide-react";
 import SummaryCards from "./components/SummaryCards";
 import EvolutionChart from "./components/EvolutionChart";
 import TotalesChart from "./components/TotalesChart";
@@ -43,6 +43,7 @@ function Home() {
   const [showReportesMenu, setShowReportesMenu] = useState(false);
   const [showMapa, setShowMapa] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [sessionUser, setSessionUser] = useState<{ user: string; nombre: string } | null>(null);
   const tvRef = useRef<HTMLDivElement>(null);
   const reportesRef = useRef<HTMLDivElement>(null);
   const [selectedOrgs, setSelectedOrgs] = useState<string[]>(
@@ -51,6 +52,10 @@ function Home() {
   const [servicio, setServicio] = useState<Servicio>(
     (searchParams.get("svc") as Servicio) ?? "GOTV"
   );
+
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => { if (d) setSessionUser(d); }).catch(() => {});
+  }, []);
 
   // Sync state to URL
   useEffect(() => {
@@ -163,12 +168,9 @@ function Home() {
         <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
 
           {/* Logo */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={goHome}>
-            <Image src="/ultranet.png" alt="Ultranet" width={120} height={32} className="opacity-80 object-contain" />
-            <div className="w-px h-7 bg-slate-700" />
-            <div>
-              <h1 className="text-base font-bold tracking-tight leading-tight">Dashboard</h1>
-            </div>
+          <div className="flex items-center cursor-pointer" onClick={goHome}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ultranet.png" alt="Ultranet Analytics" style={{ width: 160 }} className="opacity-90 object-contain" />
           </div>
 
           {/* Nav */}
@@ -281,6 +283,21 @@ function Home() {
               className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
             >
               <PlusCircle size={15} /> Cargar datos
+            </button>
+            {sessionUser && (
+              <span className="text-sm text-slate-400 hidden sm:block">
+                Usuario: <span className="text-white font-medium">{sessionUser.user}</span>
+              </span>
+            )}
+            <button
+              onClick={async () => {
+                await fetch("/api/auth/logout", { method: "POST" });
+                window.location.href = "/login";
+              }}
+              className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut size={15} />
             </button>
           </div>
         </div>
