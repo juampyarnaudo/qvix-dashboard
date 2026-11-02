@@ -21,6 +21,7 @@ const WHERE_TV = `(
   AND fco.descripcion NOT LIKE '%SENSA%'`;
 
 const WHERE_TV2 = WHERE_TV.replace(/fco\./g, "fco2.");
+const WHERE_TV3 = WHERE_TV.replace(/fco\./g, "fco3.");
 
 type Pool = Awaited<ReturnType<typeof getPool>>;
 
@@ -59,7 +60,9 @@ export async function GET() {
 
   try {
     const result = await pool.request().query(`
-      WITH bajas_tv AS (
+      WITH
+      bajas_tv AS (
+        -- Detección por facturación: items TV en estado baja (estado=9) sin item activo
         SELECT
           fc.id_conexion,
           fco.descripcion,
@@ -78,6 +81,35 @@ export async function GET() {
             WHERE fc2.id_conexion = fc.id_conexion AND fc2.estado = 0
               AND ${WHERE_TV2}
           )
+      ),
+      estado_bajas AS (
+        -- Detección por estado de conexión: Cortado/Anulado/Gestión de Corte/Baja Voluntaria con dispositivo QVIX/CUBIWARE
+        SELECT
+          v.id_conexion,
+          COALESCE(
+            (SELECT TOP 1 fco3.descripcion
+             FROM facturas_cuentas fc3 WITH (NOLOCK)
+             INNER JOIN facturas_conceptos fco3 WITH (NOLOCK) ON fco3.cod_concepto = fc3.cod_concepto
+             WHERE fc3.id_conexion = v.id_conexion
+               AND ${WHERE_TV3}
+             ORDER BY fc3.estado ASC, fc3.fecha_carga DESC),
+            'QVIX/CUBIWARE'
+          ) AS descripcion,
+          CAST(GETDATE() AS DATETIME) AS fecha_carga,
+          ROW_NUMBER() OVER (PARTITION BY v.id_conexion ORDER BY (SELECT NULL)) AS rn
+        FROM v_con_dom v WITH (NOLOCK)
+        INNER JOIN conexion_dispostivos cd WITH (NOLOCK) ON cd.id_conexion = v.id_conexion AND cd.estado = 0
+        INNER JOIN DISPOSITIVOS d WITH (NOLOCK) ON d.id_dispositivo = cd.id_dispositivo
+          AND d.tipo_cuenta_usuario IN ('QVIX', 'CUBIWARE')
+        WHERE v.Estado_Servicio IN (4, 5, 7, 61)
+          AND NOT EXISTS (
+            SELECT 1 FROM bajas_tv bt WHERE bt.id_conexion = v.id_conexion AND bt.rn = 1
+          )
+      ),
+      combined AS (
+        SELECT id_conexion, descripcion, fecha_carga FROM bajas_tv WHERE rn = 1
+        UNION ALL
+        SELECT id_conexion, descripcion, fecha_carga FROM estado_bajas WHERE rn = 1
       )
       SELECT
         b.id_conexion      AS conexion,
@@ -85,11 +117,10 @@ export async function GET() {
         con.cod_sucursal,
         b.descripcion      AS concepto_tv,
         CONVERT(VARCHAR, b.fecha_carga, 5) AS fecha_baja
-      FROM bajas_tv b
+      FROM combined b
       INNER JOIN conexiones con WITH (NOLOCK) ON con.id_conexion = b.id_conexion
       INNER JOIN abonados ab WITH (NOLOCK) ON ab.id_abonado = con.id_abonado
-      WHERE b.rn = 1
-        AND con.cod_sucursal IN (${sucursalesBase.join(",")})
+      WHERE con.cod_sucursal IN (${sucursalesBase.join(",")})
         AND NOT EXISTS (
           SELECT 1 FROM analytics_bajasqvix aq WHERE aq.id_conexion = b.id_conexion
         )
