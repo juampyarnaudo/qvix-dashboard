@@ -271,7 +271,7 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2"><Monitor size={18} className="text-indigo-400" /><h3 className="text-slate-200 font-semibold">STB (Decos)</h3></div>
+              <div className="flex items-center gap-2"><Monitor size={18} className="text-indigo-400" /><h3 className="text-slate-200 font-semibold">STB (Cuentas con dispositivos)</h3></div>
               <span className={`text-xs px-2.5 py-0.5 rounded-full ${stbColors.badge}`}>{stbColors.label}</span>
             </div>
             <div>
@@ -348,7 +348,7 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ProjectionCard label="STB (Decos)" icon={<Monitor size={16} className="text-indigo-400" />} color="text-indigo-400" proj={stbProjection} pct={stbPct} current={totalStb} />
+              <ProjectionCard label="STB (Cuentas con dispositivos)" icon={<Monitor size={16} className="text-indigo-400" />} color="text-indigo-400" proj={stbProjection} pct={stbPct} current={totalStb} />
               <ProjectionCard label="Móvil (App)" icon={<Smartphone size={16} className="text-emerald-400" />} color="text-emerald-400" proj={movilProjection} pct={movilPct} current={totalMovil} />
             </div>
           )}
