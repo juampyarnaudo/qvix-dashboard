@@ -110,9 +110,12 @@ interface Punto {
   fecha_baja: string | null;
 }
 
-function FitBounds({ puntos }: { puntos: Punto[] }) {
+// skip: cuando llega un pinDestino (deep link desde otro panel) no queremos que el reencuadre
+// automático a todos los puntos le gane al flyTo puntual ni mientras la fuente de "puntos" cambia.
+function FitBounds({ puntos, skip }: { puntos: Punto[]; skip?: boolean }) {
   const map = useMap();
   useEffect(() => {
+    if (skip) return;
     if (puntos.length === 0) return;
     const lats = puntos.map((p) => p.latitud);
     const lngs = puntos.map((p) => p.longitud);
@@ -120,7 +123,7 @@ function FitBounds({ puntos }: { puntos: Punto[] }) {
       [Math.min(...lats), Math.min(...lngs)],
       [Math.max(...lats), Math.max(...lngs)],
     ], { padding: [40, 40] });
-  }, [puntos, map]);
+  }, [puntos, map, skip]);
   return null;
 }
 
@@ -253,7 +256,7 @@ export default function MapaLeaflet({
         {mapStyle === "satellite-labels" && (
           <TileLayer url={labelsUrl} attribution="" maxNativeZoom={19} maxZoom={22} />
         )}
-        <FitBounds puntos={puntos} />
+        <FitBounds puntos={puntos} skip={!!pinDestino} />
         <ContextMenuCapture onOpen={setCtxMenu} onClose={() => setCtxMenu(null)} />
         <FlyToNap focusNap={focusNap} naps={naps} />
         <FlyToUbicacion token={ubicacionFocus} ubicacion={miUbicacion} />
