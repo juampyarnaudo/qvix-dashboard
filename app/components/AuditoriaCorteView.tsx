@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { X, Loader2, AlertCircle, Download, RefreshCw, CheckCircle2, XCircle, ArrowUp, ArrowDown, ArrowUpDown, Calendar } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { X, Loader2, AlertCircle, Download, RefreshCw, CheckCircle2, XCircle, ArrowUp, ArrowDown, ArrowUpDown, Calendar, ChevronRight } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 const SUCURSALES: Record<number, string> = {
@@ -37,6 +37,8 @@ interface DetalleRow {
 }
 
 interface ModeloDispositivo { nombre_dispositivo: string; tiene_ods: boolean; cantidad: number }
+
+interface DispositivoConexion { nombre_dispositivo: string; mac: string | null; tipo: "ONT" | "IPTV" | "OTT" | "ANTENA" | "Otro" }
 
 interface Resumen {
   porModeloDispositivo: { ONT: ModeloDispositivo[]; IPTV: ModeloDispositivo[]; OTT: ModeloDispositivo[]; ANTENA: ModeloDispositivo[] };
@@ -95,6 +97,14 @@ function fmtFecha(f: string | null): string {
   if (!f) return "—";
   return new Date(f).toLocaleDateString("es-AR");
 }
+
+function fmtMac(mac: string | null): string {
+  if (!mac) return "—";
+  const limpio = mac.replace(/[:\-.\s]/g, "").toUpperCase();
+  return limpio.match(/.{1,2}/g)?.join(":") ?? mac;
+}
+
+const TABLE_COLS = 15;
 
 const COLOR_TIPO: Record<TipoDispositivo, string> = { OTT: "#6366f1", IPTV: "#22d3ee", ONT: "#10b981", ANTENA: "#f59e0b" };
 const PALETTE_OTROS = ["#10b981", "#6366f1", "#22d3ee", "#a78bfa", "#e879f9", "#a3e635"];
@@ -205,6 +215,29 @@ export default function AuditoriaCorteView({ onClose, sucursalesPermitidas }: {
   const [modeloTipo, setModeloTipo] = useState<TipoDispositivo>("OTT");
   const [sortKey, setSortKey] = useState<SortKey>("id_conexion");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [expandido, setExpandido] = useState<number | null>(null);
+  const [dispositivosPorConexion, setDispositivosPorConexion] = useState<
+    Record<number, DispositivoConexion[] | "cargando" | "error">
+  >({});
+
+  const toggleExpand = (idConexion: number) => {
+    if (expandido === idConexion) {
+      setExpandido(null);
+      return;
+    }
+    setExpandido(idConexion);
+    if (dispositivosPorConexion[idConexion]) return;
+    setDispositivosPorConexion((prev) => ({ ...prev, [idConexion]: "cargando" }));
+    fetch(`/api/auditoria-corte/dispositivos?id_conexion=${idConexion}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.error) throw new Error(json.error);
+        setDispositivosPorConexion((prev) => ({ ...prev, [idConexion]: json.dispositivos }));
+      })
+      .catch(() => {
+        setDispositivosPorConexion((prev) => ({ ...prev, [idConexion]: "error" }));
+      });
+  };
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -475,34 +508,95 @@ export default function AuditoriaCorteView({ onClose, sucursalesPermitidas }: {
                   </tr>
                 </thead>
                 <tbody>
-                  {filasOrdenadas.map((r) => (
-                    <tr key={r.id_conexion} className="border-b border-slate-800 hover:bg-slate-700/30 transition-colors">
-                      <td className="py-2 px-3 text-slate-300 font-mono sticky left-0 z-[5] bg-slate-800">{r.id_conexion}</td>
-                      <td className="py-2 px-3 text-slate-400">{r.sucursal}</td>
-                      <td className="py-2 px-3 text-center">
-                        {r.tiene_ods
-                          ? <CheckCircle2 size={15} className="text-emerald-400 mx-auto" />
-                          : <XCircle size={15} className="text-rose-400 mx-auto" />}
-                      </td>
-                      <td className="py-2 px-3 text-slate-300 font-mono">{r.id_orden_servicio ?? "—"}</td>
-                      <td className="py-2 px-3 text-slate-300">{r.estado_incidencia ?? "—"}</td>
-                      <td className="py-2 px-3 text-right text-slate-300">{r.ott}</td>
-                      <td className="py-2 px-3 text-right text-slate-300">{r.iptv}</td>
-                      <td className="py-2 px-3 text-right text-slate-300">{r.ont}</td>
-                      <td className="py-2 px-3 text-right text-slate-300">{r.antena}</td>
-                      <td className="py-2 px-3 text-right font-semibold text-slate-200">{r.total_dispositivos}</td>
-                      <td className="py-2 px-3 text-slate-400 max-w-[180px] truncate" title={r.motivo ?? ""}>{r.motivo ?? "—"}</td>
-                      <td className="py-2 px-3 text-slate-400">{fmtFecha(r.fecha_reclamo)}</td>
-                      <td className="py-2 px-3 text-slate-400">{fmtFecha(r.fecha_asignacion)}</td>
-                      <td className="py-2 px-3 text-slate-400">{fmtFecha(r.fecha_solucion)}</td>
-                      <td
-                        className={`py-2 px-3 text-right ${r.dias_desde_vencimiento ? "text-amber-400" : "text-slate-300"}`}
-                        title={r.dias_desde_vencimiento ? "Calculado desde el vencimiento de la última factura impaga (no hay ODS con fecha de reclamo)" : undefined}
-                      >
-                        {r.dias ?? "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {filasOrdenadas.map((r) => {
+                    const abierto = expandido === r.id_conexion;
+                    const dispositivos = dispositivosPorConexion[r.id_conexion];
+                    return (
+                      <React.Fragment key={r.id_conexion}>
+                        <tr
+                          onClick={() => toggleExpand(r.id_conexion)}
+                          className="border-b border-slate-800 hover:bg-slate-700/30 transition-colors cursor-pointer"
+                        >
+                          <td className="py-2 px-3 text-slate-300 font-mono sticky left-0 z-[5] bg-slate-800">
+                            <span className="flex items-center gap-1">
+                              <ChevronRight size={12} className={`text-slate-500 transition-transform flex-shrink-0 ${abierto ? "rotate-90" : ""}`} />
+                              {r.id_conexion}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-400">{r.sucursal}</td>
+                          <td className="py-2 px-3 text-center">
+                            {r.tiene_ods
+                              ? <CheckCircle2 size={15} className="text-emerald-400 mx-auto" />
+                              : <XCircle size={15} className="text-rose-400 mx-auto" />}
+                          </td>
+                          <td className="py-2 px-3 text-slate-300 font-mono">{r.id_orden_servicio ?? "—"}</td>
+                          <td className="py-2 px-3 text-slate-300">{r.estado_incidencia ?? "—"}</td>
+                          <td className="py-2 px-3 text-right text-slate-300">{r.ott}</td>
+                          <td className="py-2 px-3 text-right text-slate-300">{r.iptv}</td>
+                          <td className="py-2 px-3 text-right text-slate-300">{r.ont}</td>
+                          <td className="py-2 px-3 text-right text-slate-300">{r.antena}</td>
+                          <td className="py-2 px-3 text-right font-semibold text-slate-200">{r.total_dispositivos}</td>
+                          <td className="py-2 px-3 text-slate-400 max-w-[180px] truncate" title={r.motivo ?? ""}>{r.motivo ?? "—"}</td>
+                          <td className="py-2 px-3 text-slate-400">{fmtFecha(r.fecha_reclamo)}</td>
+                          <td className="py-2 px-3 text-slate-400">{fmtFecha(r.fecha_asignacion)}</td>
+                          <td className="py-2 px-3 text-slate-400">{fmtFecha(r.fecha_solucion)}</td>
+                          <td
+                            className={`py-2 px-3 text-right ${r.dias_desde_vencimiento ? "text-amber-400" : "text-slate-300"}`}
+                            title={r.dias_desde_vencimiento ? "Calculado desde el vencimiento de la última factura impaga (no hay ODS con fecha de reclamo)" : undefined}
+                          >
+                            {r.dias ?? "—"}
+                          </td>
+                        </tr>
+                        {abierto && (
+                          <tr className="border-b border-slate-800 bg-slate-900/40">
+                            <td colSpan={TABLE_COLS} className="py-3 px-4">
+                              {dispositivos === "cargando" && (
+                                <div className="flex items-center gap-2 text-slate-500 text-xs py-1">
+                                  <Loader2 size={13} className="animate-spin" /> Cargando dispositivos…
+                                </div>
+                              )}
+                              {dispositivos === "error" && (
+                                <p className="text-rose-400 text-xs py-1">No se pudieron cargar los dispositivos.</p>
+                              )}
+                              {Array.isArray(dispositivos) && dispositivos.length === 0 && (
+                                <p className="text-slate-500 text-xs py-1">Sin dispositivos activos.</p>
+                              )}
+                              {Array.isArray(dispositivos) && dispositivos.length > 0 && (
+                                <table className="text-xs w-auto">
+                                  <thead>
+                                    <tr className="text-slate-500 uppercase tracking-wider">
+                                      <th className="text-left pr-6 pb-1.5 font-medium">Dispositivo</th>
+                                      <th className="text-left pr-6 pb-1.5 font-medium">MAC</th>
+                                      <th className="text-left pb-1.5 font-medium">Tipo</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {dispositivos.map((d, i) => (
+                                      <tr key={i}>
+                                        <td className="pr-6 py-0.5 text-slate-200">{d.nombre_dispositivo}</td>
+                                        <td className="pr-6 py-0.5 text-slate-400 font-mono">{fmtMac(d.mac)}</td>
+                                        <td className="py-0.5">
+                                          <span
+                                            className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                            style={{
+                                              color: COLOR_TIPO[d.tipo as TipoDispositivo] ?? "#94a3b8",
+                                              backgroundColor: `${COLOR_TIPO[d.tipo as TipoDispositivo] ?? "#94a3b8"}22`,
+                                            }}
+                                          >
+                                            {d.tipo}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               {filasOrdenadas.length === 0 && (
