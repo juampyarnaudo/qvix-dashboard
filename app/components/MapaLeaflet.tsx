@@ -220,7 +220,10 @@ export default function MapaLeaflet({
     : [-28.5, -65.8];
 
   const style = MAP_STYLES.find((s) => s.key === mapStyle) ?? MAP_STYLES[0];
-  const labelsUrl = "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png";
+  // Capa de referencia (nombres de calles/lugares) de Esri para superponer sobre el satélite —
+  // el overlay de etiquetas de CARTO (light_only_labels) empezó a pedir API key y mostraba un
+  // watermark "API KEY REQUIRED" tapando el mapa.
+  const labelsUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
 
   // Menú contextual (click derecho) — copiar coordenadas
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
