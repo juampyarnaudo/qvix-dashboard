@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench, ChevronRight } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench, ChevronRight, MessageCircle } from "lucide-react";
 import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
@@ -64,6 +64,14 @@ function fmtDireccion(o: {
 }
 
 const TABLE_COLS_SOLICITUDES = 8;
+
+// Números cargados en el form son locales (sin 0 ni 15, ej. "3834982741"): wa.me de Argentina
+// necesita "54" + "9" (celular) + el número tal cual.
+function waLink(telefono: string): string {
+  const digits = telefono.replace(/\D/g, "").replace(/^0/, "");
+  const conPais = digits.startsWith("54") ? digits : `549${digits}`;
+  return `https://wa.me/${conPais}`;
+}
 
 interface Data {
   total: number;
@@ -689,7 +697,20 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                             </span>
                           </td>
                           <td className="py-2 px-3 text-slate-200 whitespace-nowrap">{r.titular_apellido_nombre}</td>
-                          <td className="py-2 px-3 text-slate-400 whitespace-nowrap">{r.titular_telefono}</td>
+                          <td className="py-2 px-3 text-slate-400 whitespace-nowrap">
+                            <span className="flex items-center gap-1.5">
+                              {r.titular_telefono}
+                              {r.titular_telefono && (
+                                <a href={waLink(r.titular_telefono)} target="_blank" rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Abrir conversación en WhatsApp"
+                                  className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                                >
+                                  <MessageCircle size={14} />
+                                </a>
+                              )}
+                            </span>
+                          </td>
                           <td className="py-2 px-3 text-slate-300 whitespace-nowrap">{SUCURSALES[r.cod_sucursal] ?? r.cod_sucursal}</td>
                           <td className="py-2 px-3 text-slate-400 whitespace-nowrap">{r.titular_barrio ?? "—"}</td>
                           <td className="py-2 px-3 text-center whitespace-nowrap">
