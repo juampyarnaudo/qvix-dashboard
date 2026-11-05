@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { RefreshCw, ChevronDown, Check, Wifi, MapPin, Plus, Trash2, Loader2, Download, LocateFixed } from "lucide-react";
 import { getColorById, type MapStyle, type NapItem } from "./MapaUtils";
-import type { PinCustom, Ubicacion } from "./MapaLeaflet";
+import type { PinCustom, Ubicacion, PinDestino } from "./MapaLeaflet";
 
 const MapaLeaflet = dynamic(() => import("./MapaLeaflet"), { ssr: false });
 
@@ -57,14 +57,26 @@ const COLORES_PRESET = [
   { label: "Violeta", value: "#a855f7" },
 ];
 
-export default function MapaView({ onClose, sucursalesPermitidas = null }: { onClose: () => void; sucursalesPermitidas?: number[] | null }) {
+export default function MapaView({ onClose, sucursalesPermitidas = null, focoInicial = null }: {
+  onClose: () => void;
+  sucursalesPermitidas?: number[] | null;
+  focoInicial?: PinDestino & { sucursal?: number } | null;
+}) {
   const sucursalesDisponibles = sucursalesPermitidas
     ? Object.entries(SUCURSALES).filter(([cod]) => sucursalesPermitidas.includes(Number(cod)))
     : Object.entries(SUCURSALES);
 
   const [sucursal, setSucursal] = useState<number>(
-    sucursalesPermitidas ? (sucursalesPermitidas[0] ?? 4) : 4
+    focoInicial?.sucursal ?? (sucursalesPermitidas ? (sucursalesPermitidas[0] ?? 4) : 4)
   );
+
+  // Pin de destino (ej. abierto desde "Solicitudes de conexión" para ver si hay cobertura en esa zona)
+  const [pinDestinoFocus, setPinDestinoFocus] = useState<number | null>(null);
+  useEffect(() => {
+    if (focoInicial) setPinDestinoFocus(Date.now());
+    // Solo se dispara con el valor inicial que llega al montar el panel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [estados, setEstados]     = useState<number[]>([3, 6]);
   const [bajaModo, setBajaModo]   = useState<"mas12" | "menos12" | null>(null);
   const [barrios, setBarrios]           = useState<Barrio[]>([]);
@@ -762,6 +774,8 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
           focusNap={napFocus}
           miUbicacion={miUbicacion}
           ubicacionFocus={ubicacionFocus}
+          pinDestino={focoInicial}
+          pinDestinoFocus={pinDestinoFocus}
         />
 
         {/* Control flotante — Mi ubicación */}

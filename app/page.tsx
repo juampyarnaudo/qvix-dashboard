@@ -67,6 +67,7 @@ function Home() {
   const [showCampanias, setShowCampanias]             = useState(false);
   const [showSolicitudes, setShowSolicitudes]         = useState(false);
   const [showAuditoriaCorte, setShowAuditoriaCorte]   = useState(false);
+  const [focoMapa, setFocoMapa] = useState<{ lat: number; lng: number; sucursal?: number; etiqueta?: string } | null>(null);
   const [analisisDesde, setAnalisisDesde] = useState("");
   const [analisisHasta, setAnalisisHasta] = useState("");
   const [sessionUser, setSessionUser] = useState<{
@@ -89,6 +90,26 @@ function Home() {
 
   useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json()).then((d) => { if (d) setSessionUser(d); }).catch(() => {});
+  }, []);
+
+  // Deep link al mapa de cobertura con un pin ya enfocado (ej. abierto desde "Solicitudes de
+  // conexión" con ?lat=&lng=&sucursal=&etiqueta=). Se lee una sola vez al montar.
+  useEffect(() => {
+    const lat = searchParams.get("lat");
+    const lng = searchParams.get("lng");
+    if (!lat || !lng) return;
+    const latN = Number(lat);
+    const lngN = Number(lng);
+    if (!Number.isFinite(latN) || !Number.isFinite(lngN)) return;
+    const sucursalParam = searchParams.get("sucursal");
+    setFocoMapa({
+      lat: latN,
+      lng: lngN,
+      sucursal: sucursalParam ? Number(sucursalParam) : undefined,
+      etiqueta: searchParams.get("etiqueta") ?? undefined,
+    });
+    setShowMapa(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync state to URL
@@ -134,7 +155,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); setShowSolicitudes(false); setShowAuditoriaCorte(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); setShowSolicitudes(false); setShowAuditoriaCorte(false); setFocoMapa(null); };
   const goTo = (view: "licencias" | "sucursales") => {
     goHome();
     setShowLicencias(view === "licencias");
@@ -440,7 +461,7 @@ function Home() {
         />
       )}
 
-      {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
+      {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} focoInicial={focoMapa} />}
       {showReclamos && <ReclamosIncidenciasRed onBack={goHome} onClose={goHome} />}
       {showCambioDrop && <ReclamosCambioDrop onBack={() => { setShowCambioDrop(false); setShowReclamos(true); }} onClose={goHome} />}
       {showInfraestructura && <InfraestructuraView onClose={goHome} />}

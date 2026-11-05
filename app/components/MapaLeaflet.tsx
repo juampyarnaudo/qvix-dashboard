@@ -148,6 +148,18 @@ function FlyToUbicacion({ token, ubicacion }: { token?: number | null; ubicacion
   return null;
 }
 
+export interface PinDestino { lat: number; lng: number; etiqueta?: string }
+
+// Vuela hacia el pin de destino (ej. la dirección de una solicitud de conexión abierta desde otro panel)
+function FlyToPinDestino({ token, pin }: { token?: number | null; pin?: PinDestino | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!token || !pin) return;
+    map.flyTo([pin.lat, pin.lng], Math.max(map.getZoom(), 17), { duration: 1 });
+  }, [token, pin, map]);
+  return null;
+}
+
 interface CtxMenuState { x: number; y: number; lat: number; lng: number }
 
 // Captura el click derecho sobre el mapa y avisa al padre dónde mostrar el menú contextual
@@ -181,6 +193,8 @@ interface Props {
   focusNap?: string | null;
   miUbicacion?: Ubicacion | null;
   ubicacionFocus?: number | null;
+  pinDestino?: PinDestino | null;
+  pinDestinoFocus?: number | null;
 }
 
 export default function MapaLeaflet({
@@ -195,6 +209,8 @@ export default function MapaLeaflet({
   focusNap = null,
   miUbicacion = null,
   ubicacionFocus = null,
+  pinDestino = null,
+  pinDestinoFocus = null,
 }: Props) {
   const centro: [number, number] = puntos.length > 0
     ? [puntos[0].latitud, puntos[0].longitud]
@@ -241,6 +257,7 @@ export default function MapaLeaflet({
         <ContextMenuCapture onOpen={setCtxMenu} onClose={() => setCtxMenu(null)} />
         <FlyToNap focusNap={focusNap} naps={naps} />
         <FlyToUbicacion token={ubicacionFocus} ubicacion={miUbicacion} />
+        <FlyToPinDestino token={pinDestinoFocus} pin={pinDestino} />
 
         {/* Mi ubicación */}
         {miUbicacion && (
@@ -258,6 +275,17 @@ export default function MapaLeaflet({
               <Popup>Tu ubicación</Popup>
             </CircleMarker>
           </>
+        )}
+
+        {/* Pin de destino (ej. dirección de una solicitud de conexión) */}
+        {pinDestino && (
+          <CircleMarker
+            center={[pinDestino.lat, pinDestino.lng]}
+            radius={10}
+            pathOptions={{ fillColor: "#ec4899", fillOpacity: 1, color: "#fff", weight: 3 }}
+          >
+            <Popup>{pinDestino.etiqueta ?? "Ubicación buscada"}</Popup>
+          </CircleMarker>
         )}
 
         {/* Líneas NAP → todas sus conexiones */}

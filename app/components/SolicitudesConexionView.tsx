@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench, ChevronRight, MessageCircle } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench, ChevronRight, MessageCircle, Wifi } from "lucide-react";
 import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
@@ -71,6 +71,17 @@ function waLink(telefono: string): string {
   const digits = telefono.replace(/\D/g, "").replace(/^0/, "");
   const conPais = digits.startsWith("54") ? digits : `549${digits}`;
   return `https://wa.me/${conPais}`;
+}
+
+// Abre el mapa de cobertura (en la misma app) centrado en la ubicación de la solicitud, para
+// chequear si hay servicio en esa zona antes de aprobarla.
+function coberturaUrl(r: SolicitudRow): string {
+  const params = new URLSearchParams();
+  params.set("lat", String(r.inm_lat));
+  params.set("lng", String(r.inm_lng));
+  params.set("sucursal", String(r.cod_sucursal));
+  params.set("etiqueta", r.titular_apellido_nombre);
+  return `/?${params.toString()}`;
 }
 
 interface Data {
@@ -721,12 +732,22 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                           </td>
                           <td className="py-2 px-3 text-center whitespace-nowrap">
                             {r.inm_lat !== null && r.inm_lng !== null ? (
-                              <a href={`https://www.google.com/maps?q=${r.inm_lat},${r.inm_lng}`} target="_blank" rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
-                              >
-                                Ver en mapa
-                              </a>
+                              <span className="flex items-center justify-center gap-2">
+                                <a href={`https://www.google.com/maps?q=${r.inm_lat},${r.inm_lng}`} target="_blank" rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                                >
+                                  Google Maps
+                                </a>
+                                <span className="text-slate-700">·</span>
+                                <a href={coberturaUrl(r)} target="_blank" rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Ver si hay cobertura en nuestro mapa de red"
+                                  className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+                                >
+                                  <Wifi size={11} /> Cobertura
+                                </a>
+                              </span>
                             ) : <span className="text-slate-600">—</span>}
                           </td>
                         </tr>
