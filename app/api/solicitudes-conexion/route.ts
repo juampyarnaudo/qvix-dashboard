@@ -44,6 +44,7 @@ export interface SolicitudRow {
   ocupacion: string | null;
   ambito: string | null;
   precio: number | null;
+  cliente_existente: boolean;
 }
 
 export async function GET(req: NextRequest) {

@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench, ChevronRight } from "lucide-react";
 import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
@@ -16,19 +16,54 @@ const SUCURSALES: Record<number, string> = {
 interface SolicitudRow {
   id: number;
   origen: string;
+  vendedor_usuario: string | null;
   vendedor_nombre: string | null;
   cod_sucursal: number;
   fecha_solicitud: string;
+  doble_play: boolean;
   velocidad: string | null;
   go_tv: boolean;
   precio: number | null;
+  cliente_existente: boolean;
   titular_apellido_nombre: string;
+  titular_tipo_documento: string;
+  titular_numero_documento: string;
   titular_telefono: string;
+  titular_email: string | null;
   titular_barrio: string | null;
-  referencia: string | null;
+  titular_localidad: string | null;
+  titular_provincia: string | null;
+  titular_calle: string | null;
+  titular_numero: string | null;
+  titular_piso: string | null;
+  titular_dpto: string | null;
+  inm_barrio: string | null;
+  inm_localidad: string | null;
+  inm_provincia: string | null;
+  inm_calle: string | null;
+  inm_numero: string | null;
+  inm_piso: string | null;
+  inm_dpto: string | null;
+  inm_telefono: string | null;
   inm_lat: number | null;
   inm_lng: number | null;
+  referencia: string | null;
+  lugar_trabajo: string | null;
+  ocupacion: string | null;
+  ambito: string | null;
 }
+
+function fmtDireccion(o: {
+  calle?: string | null; numero?: string | null; piso?: string | null; dpto?: string | null;
+  barrio?: string | null; localidad?: string | null; provincia?: string | null;
+}): string {
+  const calleNumero = [o.calle, o.numero].filter(Boolean).join(" ");
+  const pisoDpto = [o.piso, o.dpto].filter(Boolean).join(" ");
+  const partes = [calleNumero, pisoDpto, o.barrio, o.localidad, o.provincia].filter((p) => p && p.trim());
+  return partes.length > 0 ? partes.join(", ") : "—";
+}
+
+const TABLE_COLS_SOLICITUDES = 8;
 
 interface Data {
   total: number;
@@ -113,6 +148,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandido, setExpandido] = useState<number | null>(null);
 
   const [qrTipo, setQrTipo] = useState<"solicitud" | "enlaces">("solicitud");
   const [qrSucursal, setQrSucursal] = useState<number | "universal" | null>(sucursalesDisponibles[0] ?? null);
@@ -633,35 +669,80 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-800/60 hover:bg-slate-700/20">
-                      <td className="py-2 px-3 text-slate-400 whitespace-nowrap">{fmtFecha(r.fecha_solicitud)}</td>
-                      <td className="py-2 px-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${r.origen === "vendedor" ? "bg-indigo-500/20 text-indigo-300" : "bg-purple-500/20 text-purple-300"}`}>
-                          {r.origen === "vendedor" ? (r.vendedor_nombre ?? "Vendedor") : "QR"}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-slate-200 whitespace-nowrap">{r.titular_apellido_nombre}</td>
-                      <td className="py-2 px-3 text-slate-400 whitespace-nowrap">{r.titular_telefono}</td>
-                      <td className="py-2 px-3 text-slate-300 whitespace-nowrap">{SUCURSALES[r.cod_sucursal] ?? r.cod_sucursal}</td>
-                      <td className="py-2 px-3 text-slate-400 whitespace-nowrap">{r.titular_barrio ?? "—"}</td>
-                      <td className="py-2 px-3 text-center whitespace-nowrap">
-                        {r.velocidad && <span className="text-emerald-400">{r.velocidad}</span>}
-                        {r.velocidad && r.go_tv && " · "}
-                        {r.go_tv && <span className="text-amber-400">GO TV</span>}
-                        {r.precio !== null && <span className="block text-[10px] text-slate-500">{pesos(r.precio)}</span>}
-                      </td>
-                      <td className="py-2 px-3 text-center whitespace-nowrap">
-                        {r.inm_lat !== null && r.inm_lng !== null ? (
-                          <a href={`https://www.google.com/maps?q=${r.inm_lat},${r.inm_lng}`} target="_blank" rel="noopener noreferrer"
-                            className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
-                          >
-                            Ver en mapa
-                          </a>
-                        ) : <span className="text-slate-600">—</span>}
-                      </td>
-                    </tr>
-                  ))}
+                  {data.rows.map((r) => {
+                    const abierto = expandido === r.id;
+                    return (
+                      <React.Fragment key={r.id}>
+                        <tr
+                          onClick={() => setExpandido(abierto ? null : r.id)}
+                          className="border-b border-slate-800/60 hover:bg-slate-700/20 cursor-pointer"
+                        >
+                          <td className="py-2 px-3 text-slate-400 whitespace-nowrap">
+                            <span className="flex items-center gap-1">
+                              <ChevronRight size={12} className={`text-slate-500 transition-transform flex-shrink-0 ${abierto ? "rotate-90" : ""}`} />
+                              {fmtFecha(r.fecha_solicitud)}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${r.origen === "vendedor" ? "bg-indigo-500/20 text-indigo-300" : "bg-purple-500/20 text-purple-300"}`}>
+                              {r.origen === "vendedor" ? (r.vendedor_nombre ?? "Vendedor") : "QR"}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-200 whitespace-nowrap">{r.titular_apellido_nombre}</td>
+                          <td className="py-2 px-3 text-slate-400 whitespace-nowrap">{r.titular_telefono}</td>
+                          <td className="py-2 px-3 text-slate-300 whitespace-nowrap">{SUCURSALES[r.cod_sucursal] ?? r.cod_sucursal}</td>
+                          <td className="py-2 px-3 text-slate-400 whitespace-nowrap">{r.titular_barrio ?? "—"}</td>
+                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                            {r.velocidad && <span className="text-emerald-400">{r.velocidad}</span>}
+                            {r.velocidad && r.go_tv && " · "}
+                            {r.go_tv && <span className="text-amber-400">GO TV</span>}
+                            {r.precio !== null && <span className="block text-[10px] text-slate-500">{pesos(r.precio)}</span>}
+                          </td>
+                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                            {r.inm_lat !== null && r.inm_lng !== null ? (
+                              <a href={`https://www.google.com/maps?q=${r.inm_lat},${r.inm_lng}`} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                              >
+                                Ver en mapa
+                              </a>
+                            ) : <span className="text-slate-600">—</span>}
+                          </td>
+                        </tr>
+                        {abierto && (
+                          <tr className="border-b border-slate-800/60 bg-slate-900/40">
+                            <td colSpan={TABLE_COLS_SOLICITUDES} className="py-3 px-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                <div className="space-y-1">
+                                  <p className="text-slate-500 uppercase tracking-wider text-[10px] font-medium mb-1.5">Titular</p>
+                                  <p className="text-slate-300">
+                                    <span className="text-slate-500">Documento:</span> {r.titular_tipo_documento} {r.titular_numero_documento}
+                                  </p>
+                                  <p className="text-slate-300"><span className="text-slate-500">Email:</span> {r.titular_email ?? "—"}</p>
+                                  {r.cliente_existente && (
+                                    <p className="text-amber-400">Ya es cliente (solo pide TV)</p>
+                                  )}
+                                </div>
+                                <div className="space-y-1">
+                                  <p className="text-slate-500 uppercase tracking-wider text-[10px] font-medium mb-1.5">Domicilio de instalación</p>
+                                  <p className="text-slate-300"><span className="text-slate-500">Dirección:</span> {fmtDireccion({
+                                    calle: r.titular_calle ?? r.inm_calle, numero: r.titular_numero ?? r.inm_numero,
+                                    piso: r.titular_piso ?? r.inm_piso, dpto: r.titular_dpto ?? r.inm_dpto,
+                                    barrio: r.titular_barrio ?? r.inm_barrio, localidad: r.titular_localidad ?? r.inm_localidad,
+                                    provincia: r.titular_provincia ?? r.inm_provincia,
+                                  })}</p>
+                                  <p className="text-slate-300"><span className="text-slate-500">Referencia:</span> {r.referencia ?? "—"}</p>
+                                  {r.origen === "vendedor" && (
+                                    <p className="text-slate-300"><span className="text-slate-500">Vendedor:</span> {r.vendedor_nombre ?? "—"} {r.vendedor_usuario ? `(${r.vendedor_usuario})` : ""}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               {data.rows.length === 0 && (
