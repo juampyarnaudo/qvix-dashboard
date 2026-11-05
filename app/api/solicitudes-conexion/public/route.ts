@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
 import { getPool } from "@/app/lib/db";
 import { getSession } from "@/app/lib/session";
+import { enviarCorreo, escapeHtml, filasDatos, layoutEmail } from "@/app/lib/mailer";
 
 export const SUCURSALES: Record<number, string> = {
   1: "Chumbicha",
@@ -102,6 +103,108 @@ function s(v: unknown, max: number): string | null {
   return trimmed ? trimmed.slice(0, max) : null;
 }
 
+function pesos(n: number): string {
+  return n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+}
+
+function fmtDireccion(o: {
+  calle?: string | null; numero?: string | null; piso?: string | null; dpto?: string | null;
+  barrio?: string | null; localidad?: string | null;
+}): string | null {
+  const partes = [
+    [o.calle, o.numero].filter(Boolean).join(" "),
+    o.piso ? `Piso ${o.piso}` : null,
+    o.dpto ? `Dpto ${o.dpto}` : null,
+    o.barrio,
+    o.localidad,
+  ].filter(Boolean);
+  return partes.length ? partes.join(", ") : null;
+}
+
+function describirServicio(opts: { velocidad: string | null; doble_play: boolean; go_tv: boolean; clienteExistente: boolean }): string {
+  const { velocidad, doble_play, go_tv, clienteExistente } = opts;
+  if (clienteExistente && go_tv && !velocidad) return "GO TV (cliente con internet existente)";
+  const partes: string[] = [];
+  if (velocidad) partes.push(`Internet ${velocidad}${doble_play ? " + TV (Doble Play)" : ""}`);
+  if (go_tv && !doble_play) partes.push("GO TV");
+  return partes.join(" + ") || "—";
+}
+
+// Direcciones de los encargados de cada sucursal (en Vercel): ENCARGADOS_SUCURSAL, JSON con
+// { "<cod_sucursal>": "mail1@x.com,mail2@x.com" }. ENCARGADOS_DESTINO es el fallback para
+// cualquier sucursal que no esté en el mapa (por defecto, ninguno). ENCARGADOS_COMODIN son mails
+// separados por coma que reciben la notificación de TODAS las sucursales además del encargado.
+function getEncargadosEmails(cod_sucursal: number): string[] {
+  let mapa: Record<string, string> = {};
+  try {
+    mapa = JSON.parse(process.env.ENCARGADOS_SUCURSAL ?? "{}");
+  } catch (err) {
+    console.error("[solicitudes-conexion/public] ENCARGADOS_SUCURSAL inválido:", err);
+  }
+  const lista = mapa[String(cod_sucursal)] ?? process.env.ENCARGADOS_DESTINO ?? "";
+  const comodin = process.env.ENCARGADOS_COMODIN ?? "";
+  const todos = `${lista},${comodin}`.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return [...new Set(todos)];
+}
+
+// Al completarse una solicitud: un correo de confirmación al cliente (si dejó email) y una
+// notificación a los encargados de la sucursal, para que sepan que hay una solicitud nueva.
+// Nunca hace fallar el guardado de la solicitud: los errores de envío solo se loguean.
+async function enviarNotificacionesSolicitud(d: {
+  origenOrigin: string; id?: number; cod_sucursal: number; sucursalNombre: string;
+  titular: string; documento: string; telefono: string; email: string | null;
+  direccion: string | null; referencia: string | null; servicio: string; precio: number | null;
+  origen: string; vendedorNombre: string | null; fecha: string;
+}): Promise<void> {
+  const logoUrl = `${d.origenOrigin}/ultranet-logo.png`;
+  const numSolicitud = d.id ? `#${d.id}` : null;
+
+  if (d.email) {
+    const html = layoutEmail({
+      logoUrl,
+      eyebrow: "Solicitud de conexión",
+      titulo: "¡Recibimos tu solicitud!",
+      saludo: `Hola ${escapeHtml(d.titular.split(" ")[0])},`,
+      parrafos: [`Registramos tu solicitud de conexión a Ultranet en la sucursal ${escapeHtml(d.sucursalNombre)}. Estos son los datos que quedaron cargados:`],
+      filasHtml: filasDatos([
+        ["Servicio", d.servicio],
+        ["Dirección de instalación", d.direccion],
+        ["Teléfono de contacto", d.telefono],
+        ["Sucursal", d.sucursalNombre],
+        ["N.º de solicitud", numSolicitud],
+      ]),
+      parrafoFinal: "Nuestro equipo de la sucursal se va a comunicar con vos a la brevedad para coordinar la instalación.",
+    });
+    await enviarCorreo({ to: d.email, subject: `Recibimos tu solicitud de conexión — Ultranet ${d.sucursalNombre}`, html });
+  }
+
+  const destinatarios = getEncargadosEmails(d.cod_sucursal);
+  if (destinatarios.length > 0) {
+    const origenTexto = d.origen === "vendedor" && d.vendedorNombre
+      ? ` (cargada por ${escapeHtml(d.vendedorNombre)})`
+      : d.origen === "qr" ? " desde el QR de la sucursal" : "";
+    const html = layoutEmail({
+      logoUrl,
+      eyebrow: `Sucursal ${d.sucursalNombre}`,
+      titulo: "Nueva solicitud de conexión",
+      parrafos: [`Se cargó una nueva solicitud de conexión${origenTexto} el ${escapeHtml(d.fecha)}.`],
+      filasHtml: filasDatos([
+        ["Titular", d.titular],
+        ["Documento", d.documento],
+        ["Teléfono", d.telefono],
+        ["Email", d.email],
+        ["Dirección de instalación", d.direccion],
+        ["Referencia", d.referencia],
+        ["Servicio solicitado", d.servicio],
+        ["Precio", d.precio != null ? pesos(d.precio) : null],
+        ["N.º de solicitud", numSolicitud],
+      ]),
+      cta: { texto: "Abrir panel de Ultranet", href: d.origenOrigin },
+    });
+    await Promise.all(destinatarios.map((to) => enviarCorreo({ to, subject: `Nueva solicitud de conexión — ${d.sucursalNombre}`, html })));
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: SolicitudInput;
   try {
@@ -149,7 +252,7 @@ export async function POST(req: NextRequest) {
     const pool = await getPool();
     await ensureTable(pool);
 
-    await pool.request()
+    const insertResult = await pool.request()
       .input("origen", sql.VarChar(20), origen)
       .input("vendedor_usuario", sql.NVarChar(100), vendedor_usuario)
       .input("vendedor_nombre", sql.NVarChar(150), vendedor_nombre)
@@ -194,7 +297,9 @@ export async function POST(req: NextRequest) {
           titular_apellido_nombre, titular_tipo_documento, titular_numero_documento,
           titular_barrio, titular_localidad, titular_provincia, titular_calle, titular_numero, titular_piso, titular_dpto,
           titular_telefono, titular_email, lugar_trabajo, ocupacion, ambito, precio, cliente_existente
-        ) VALUES (
+        )
+        OUTPUT INSERTED.id AS id
+        VALUES (
           @origen, @vendedor_usuario, @vendedor_nombre, @cod_sucursal,
           @doble_play, @velocidad, @go_tv,
           @inm_barrio, @inm_localidad, @inm_provincia, @inm_calle, @inm_numero, @inm_piso, @inm_dpto, @inm_telefono, @inm_lat, @inm_lng,
@@ -204,6 +309,38 @@ export async function POST(req: NextRequest) {
           @titular_telefono, @titular_email, @lugar_trabajo, @ocupacion, @ambito, @precio, @cliente_existente
         )
       `);
+
+    const id = (insertResult.recordset[0]?.id as number | undefined) ?? undefined;
+    const fecha = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Catamarca" });
+
+    try {
+      await enviarNotificacionesSolicitud({
+        origenOrigin: new URL(req.url).origin,
+        id,
+        cod_sucursal,
+        sucursalNombre: SUCURSALES[cod_sucursal] ?? `Sucursal ${cod_sucursal}`,
+        titular: titular_apellido_nombre,
+        documento: `${titular_tipo_documento} ${titular_numero_documento}`,
+        telefono: titular_telefono,
+        email: s(body.titular_email, 150),
+        direccion: fmtDireccion({
+          calle: body.titular_calle ?? body.inm_calle,
+          numero: body.titular_numero ?? body.inm_numero,
+          piso: body.titular_piso ?? body.inm_piso,
+          dpto: body.titular_dpto ?? body.inm_dpto,
+          barrio: body.titular_barrio ?? body.inm_barrio,
+          localidad: body.titular_localidad ?? body.inm_localidad,
+        }),
+        referencia: s(body.referencia, 300),
+        servicio: describirServicio({ velocidad, doble_play, go_tv, clienteExistente }),
+        precio,
+        origen,
+        vendedorNombre: vendedor_nombre,
+        fecha,
+      });
+    } catch (err) {
+      console.error("[solicitudes-conexion/public] error enviando notificaciones por mail", err);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
