@@ -155,9 +155,11 @@ const ICONO_PRESET: Record<IconoItem, { titulo: string; texto: string }> = {
   instalacion: { titulo: "Instalación sin cargo", texto: "Te conectamos sin costo adicional" },
 };
 
-export default function SolicitudesConexionView({ onClose, sucursalesPermitidas }: {
-  onClose: () => void; sucursalesPermitidas: number[] | null;
+export default function SolicitudesConexionView({ onClose, sucursalesPermitidas, usuarioActual }: {
+  onClose: () => void; sucursalesPermitidas: number[] | null; usuarioActual?: string | null;
 }) {
+  // Eliminar una solicitud es destructivo y hoy solo lo puede hacer mromero (a pedido suyo).
+  const puedeEliminar = usuarioActual === "mromero";
   const sucursalesDisponibles: number[] = sucursalesPermitidas
     ? Object.keys(SUCURSALES).map(Number).filter((c) => sucursalesPermitidas.includes(c))
     : Object.keys(SUCURSALES).map(Number);
@@ -168,6 +170,8 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandido, setExpandido] = useState<number | null>(null);
+  const [aBorrarSolicitud, setABorrarSolicitud] = useState<SolicitudRow | null>(null);
+  const [borrandoSolicitud, setBorrandoSolicitud] = useState(false);
 
   const [qrTipo, setQrTipo] = useState<"solicitud" | "enlaces">("solicitud");
   const [qrSucursal, setQrSucursal] = useState<number | "universal" | null>(sucursalesDisponibles[0] ?? null);
@@ -282,6 +286,28 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   }, [sucSel]);
 
   useEffect(() => { if (panel === null) fetchData(); }, [panel, sucSel, fetchData]);
+
+  const borrarSolicitud = async () => {
+    if (!aBorrarSolicitud) return;
+    setBorrandoSolicitud(true);
+    try {
+      const res = await fetch("/api/solicitudes-conexion", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: aBorrarSolicitud.id }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setABorrarSolicitud(null);
+      setExpandido(null);
+      await fetchData();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      setABorrarSolicitud(null);
+    } finally {
+      setBorrandoSolicitud(false);
+    }
+  };
 
   useEffect(() => {
     if (panel !== "qr") return;
@@ -779,6 +805,16 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                                   )}
                                 </div>
                               </div>
+                              {puedeEliminar && (
+                                <div className="flex justify-end mt-3 pt-3 border-t border-slate-800/60">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setABorrarSolicitud(r); }}
+                                    className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 text-xs font-medium transition-colors"
+                                  >
+                                    <Trash2 size={13} /> Eliminar solicitud
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         )}
@@ -798,6 +834,14 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
             </div>
           </div>
         </>
+      )}
+
+      {aBorrarSolicitud && (
+        <ConfirmModal
+          message={`¿Eliminar la solicitud de "${aBorrarSolicitud.titular_apellido_nombre}"? No se puede deshacer.${borrandoSolicitud ? " Eliminando…" : ""}`}
+          onConfirm={borrarSolicitud}
+          onCancel={() => setABorrarSolicitud(null)}
+        />
       )}
     </div>
   );

@@ -473,7 +473,7 @@ function Home() {
       {showBajasQvix && <BajasQvixView onClose={goHome} />}
       {showTVPlanes && <TVPlanesView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showCampanias && <CampaniasWhatsappView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
-      {showSolicitudes && <SolicitudesConexionView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
+      {showSolicitudes && <SolicitudesConexionView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} usuarioActual={sessionUser?.user ?? null} />}
       {showAuditoriaCorte && <AuditoriaCorteView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
 
       <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix || showTVPlanes || showCampanias || showSolicitudes || showAuditoriaCorte ? "hidden" : ""}`}>

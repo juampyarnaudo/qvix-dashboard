@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import sql from "mssql";
 import { getPool } from "@/app/lib/db";
 import { getSession } from "@/app/lib/session";
 import { ensureTable, TABLA, SUCURSALES, SUCURSALES_VALIDAS } from "@/app/api/solicitudes-conexion/public/route";
@@ -97,6 +98,36 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("[solicitudes-conexion GET]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+// Eliminar una solicitud es destructivo (documento/DNI del titular incluido) y hoy solo lo puede
+// hacer mromero, a pedido suyo — no hay un rol de "admin" general para esta pantalla todavía.
+export async function DELETE(req: NextRequest) {
+  const session = await getSession();
+  if (!session.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.user !== "mromero") return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
+
+  let body: { id?: number };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+  const id = Number(body.id);
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "id inválido" }, { status: 400 });
+
+  try {
+    const pool = await getPool();
+    await ensureTable(pool);
+    await pool.request().input("id", sql.Int, id).query(`DELETE FROM ${TABLA} WHERE id = @id`);
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("[solicitudes-conexion DELETE]", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 }
