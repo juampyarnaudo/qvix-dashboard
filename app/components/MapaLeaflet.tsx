@@ -220,10 +220,11 @@ export default function MapaLeaflet({
     : [-28.5, -65.8];
 
   const style = MAP_STYLES.find((s) => s.key === mapStyle) ?? MAP_STYLES[0];
-  // Capa de referencia (nombres de calles/lugares) de Esri para superponer sobre el satélite —
-  // el overlay de etiquetas de CARTO (light_only_labels) empezó a pedir API key y mostraba un
-  // watermark "API KEY REQUIRED" tapando el mapa.
+  // Dos capas de referencia de Esri superpuestas sobre el satélite (reemplazan al overlay de
+  // etiquetas de CARTO, que empezó a pedir API key y mostraba un watermark "API KEY REQUIRED"):
+  // Boundaries_and_Places pone nombres de lugares/límites, World_Transportation pone las calles.
   const labelsUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+  const streetsUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
 
   // Menú contextual (click derecho) — copiar coordenadas
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
@@ -257,7 +258,10 @@ export default function MapaLeaflet({
       >
         <TileLayer url={style.url} attribution={style.attribution} maxNativeZoom={17} maxZoom={22} />
         {mapStyle === "satellite-labels" && (
-          <TileLayer url={labelsUrl} attribution="" maxNativeZoom={19} maxZoom={22} />
+          <>
+            <TileLayer url={streetsUrl} attribution="" maxNativeZoom={19} maxZoom={22} />
+            <TileLayer url={labelsUrl} attribution="" maxNativeZoom={19} maxZoom={22} />
+          </>
         )}
         <FitBounds puntos={puntos} skip={!!pinDestino} />
         <ContextMenuCapture onOpen={setCtxMenu} onClose={() => setCtxMenu(null)} />
