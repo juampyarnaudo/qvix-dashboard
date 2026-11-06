@@ -57,10 +57,11 @@ const COLORES_PRESET = [
   { label: "Violeta", value: "#a855f7" },
 ];
 
-export default function MapaView({ onClose, sucursalesPermitidas = null, focoInicial = null }: {
+export default function MapaView({ onClose, sucursalesPermitidas = null, focoInicial = null, puedeExportar = true }: {
   onClose: () => void;
   sucursalesPermitidas?: number[] | null;
   focoInicial?: PinDestino & { sucursal?: number } | null;
+  puedeExportar?: boolean;
 }) {
   const sucursalesDisponibles = sucursalesPermitidas
     ? Object.entries(SUCURSALES).filter(([cod]) => sucursalesPermitidas.includes(Number(cod)))
@@ -716,11 +717,13 @@ export default function MapaView({ onClose, sucursalesPermitidas = null, focoIni
           )}
         </div>
 
-        <a href={buildExportUrl()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors"
-        >
-          <Download size={13} /> Exportar Excel
-        </a>
+        {puedeExportar && (
+          <a href={buildExportUrl()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors"
+          >
+            <Download size={13} /> Exportar Excel
+          </a>
+        )}
 
         <button onClick={fetchPuntos} disabled={loading}
           className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-50"

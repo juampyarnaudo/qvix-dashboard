@@ -462,7 +462,7 @@ function Home() {
         />
       )}
 
-      {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} focoInicial={focoMapa} />}
+      {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} focoInicial={focoMapa} puedeExportar={!sessionUser?.solicitudesRestricciones?.includes("exportar")} />}
       {showReclamos && <ReclamosIncidenciasRed onBack={goHome} onClose={goHome} />}
       {showCambioDrop && <ReclamosCambioDrop onBack={() => { setShowCambioDrop(false); setShowReclamos(true); }} onClose={goHome} />}
       {showInfraestructura && <InfraestructuraView onClose={goHome} />}

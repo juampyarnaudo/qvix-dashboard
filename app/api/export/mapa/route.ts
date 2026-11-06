@@ -25,6 +25,7 @@ function buildIn(raw: string | null, fallback: string): string {
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.solicitudesRestricciones?.includes("exportar")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const { sucursales: sucursalesPermitidas } = session.user;
   const sucursal = parseInt(req.nextUrl.searchParams.get("sucursal") ?? "4", 10);

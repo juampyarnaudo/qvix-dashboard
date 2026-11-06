@@ -18,6 +18,7 @@ function distancia(lat1: number, lng1: number, lat2: number, lng2: number): numb
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.solicitudesRestricciones?.includes("exportar")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const sucursal = parseInt(req.nextUrl.searchParams.get("sucursal") ?? "4", 10);
   if (isNaN(sucursal)) return NextResponse.json({ error: "Sucursal inválida" }, { status: 400 });
