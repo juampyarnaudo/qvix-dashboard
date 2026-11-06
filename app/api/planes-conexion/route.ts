@@ -115,6 +115,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.solicitudesRestricciones?.includes("planes")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const body = await req.json();
   const nombre = parseNombre(body.nombre);
@@ -158,6 +159,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const session = await getSession();
   if (!session.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.solicitudesRestricciones?.includes("planes")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const body = await req.json();
   const id = Number(body.id);
@@ -199,6 +201,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await getSession();
   if (!session.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.solicitudesRestricciones?.includes("planes")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const { id } = await req.json();
   const idNum = Number(id);

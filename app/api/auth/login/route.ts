@@ -7,6 +7,7 @@ interface AuthUser {
   nombre: string;
   sucursales?: number[] | null;
   secciones?: string[] | null;
+  solicitudesRestricciones?: string[];
 }
 
 function getUsers(): AuthUser[] {
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     nombre: found.nombre,
     sucursales: found.sucursales ?? null,
     secciones: found.secciones ?? null,
+    solicitudesRestricciones: found.solicitudesRestricciones ?? [],
   };
   await session.save();
 

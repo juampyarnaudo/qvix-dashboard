@@ -7,6 +7,8 @@ export interface SessionData {
     nombre: string;
     sucursales: number[] | null;
     secciones: string[] | null;
+    // Acciones bloqueadas dentro de Solicitudes de Conexión: "exportar" | "planes" | "qr".
+    solicitudesRestricciones?: string[];
   };
 }
 

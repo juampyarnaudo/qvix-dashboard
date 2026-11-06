@@ -155,11 +155,16 @@ const ICONO_PRESET: Record<IconoItem, { titulo: string; texto: string }> = {
   instalacion: { titulo: "Instalación sin cargo", texto: "Te conectamos sin costo adicional" },
 };
 
-export default function SolicitudesConexionView({ onClose, sucursalesPermitidas, usuarioActual }: {
-  onClose: () => void; sucursalesPermitidas: number[] | null; usuarioActual?: string | null;
+export default function SolicitudesConexionView({ onClose, sucursalesPermitidas, usuarioActual, restricciones }: {
+  onClose: () => void; sucursalesPermitidas: number[] | null; usuarioActual?: string | null; restricciones?: string[];
 }) {
   // Eliminar una solicitud es destructivo y hoy solo lo puede hacer mromero (a pedido suyo).
   const puedeEliminar = usuarioActual === "mromero";
+  // Qué puede hacer cada usuario dentro de Solicitudes: por defecto, todo. "restricciones" lista
+  // lo que se le bloquea (hoy: dolmos/ldiaz/mmercado sin nada de esto, rheredia sin planes/qr).
+  const puedeExportar = !restricciones?.includes("exportar");
+  const puedeGestionarPlanes = !restricciones?.includes("planes");
+  const puedeGenerarQr = !restricciones?.includes("qr");
   const sucursalesDisponibles: number[] = sucursalesPermitidas
     ? Object.keys(SUCURSALES).map(Number).filter((c) => sucursalesPermitidas.includes(c))
     : Object.keys(SUCURSALES).map(Number);
@@ -347,7 +352,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
         {subtitulo && <p className="text-slate-400 text-sm mt-0.5">{subtitulo}</p>}
       </div>
       <div className="flex items-center gap-2">
-        {!panel && data && (
+        {!panel && data && puedeExportar && (
           <a href={exportUrl()} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors">
             <Download size={13} /> Exportar Excel
           </a>
@@ -668,12 +673,16 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
         <button onClick={abrirNuevaSolicitud} className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors">
           <PlusCircle size={15} /> Nueva solicitud
         </button>
-        <button onClick={() => setPanel("qr")} className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 hover:border-indigo-500 text-slate-300 hover:text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors">
-          <QrCodeIcon size={15} /> Generar QR
-        </button>
-        <button onClick={() => setPanel("planes")} className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 hover:border-indigo-500 text-slate-300 hover:text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors">
-          <DollarSign size={15} /> Gestionar planes
-        </button>
+        {puedeGenerarQr && (
+          <button onClick={() => setPanel("qr")} className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 hover:border-indigo-500 text-slate-300 hover:text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors">
+            <QrCodeIcon size={15} /> Generar QR
+          </button>
+        )}
+        {puedeGestionarPlanes && (
+          <button onClick={() => setPanel("planes")} className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 hover:border-indigo-500 text-slate-300 hover:text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors">
+            <DollarSign size={15} /> Gestionar planes
+          </button>
+        )}
       </div>
 
       {error && (
