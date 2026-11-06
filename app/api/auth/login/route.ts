@@ -8,6 +8,7 @@ interface AuthUser {
   sucursales?: number[] | null;
   secciones?: string[] | null;
   solicitudesRestricciones?: string[];
+  vistaInicial?: string;
 }
 
 function getUsers(): AuthUser[] {
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
     sucursales: found.sucursales ?? null,
     secciones: found.secciones ?? null,
     solicitudesRestricciones: found.solicitudesRestricciones ?? [],
+    vistaInicial: found.vistaInicial,
   };
   await session.save();
 

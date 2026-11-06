@@ -76,6 +76,7 @@ function Home() {
     sucursales: number[] | null;
     secciones: string[] | null;
     solicitudesRestricciones?: string[];
+    vistaInicial?: string;
   } | null>(null);
 
   const puedeVer = (seccion: string) =>
@@ -90,7 +91,11 @@ function Home() {
   );
 
   useEffect(() => {
-    fetch("/api/auth/me").then((r) => r.json()).then((d) => { if (d) setSessionUser(d); }).catch(() => {});
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => {
+      if (!d) return;
+      setSessionUser(d);
+      if (d.vistaInicial === "solicitudes") setShowSolicitudes(true);
+    }).catch(() => {});
   }, []);
 
   // Deep link al mapa de cobertura con un pin ya enfocado (ej. abierto desde "Solicitudes de

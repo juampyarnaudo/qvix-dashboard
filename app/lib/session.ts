@@ -9,6 +9,8 @@ export interface SessionData {
     secciones: string[] | null;
     // Acciones bloqueadas dentro de Solicitudes de Conexión: "exportar" | "planes" | "qr".
     solicitudesRestricciones?: string[];
+    // Sección que se abre automáticamente al iniciar sesión, ej. "solicitudes".
+    vistaInicial?: string;
   };
 }
 
