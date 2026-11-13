@@ -32,6 +32,7 @@ import TVPlanesView from "./components/TVPlanesView";
 import CampaniasWhatsappView from "./components/CampaniasWhatsappView";
 import SolicitudesConexionView from "./components/SolicitudesConexionView";
 import AuditoriaCorteView from "./components/AuditoriaCorteView";
+import ZteDesbloqueoView from "./components/ZteDesbloqueoView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { parseCSV } from "./lib/csvParser";
 import type { DataRow, Servicio } from "./lib/types";
@@ -67,6 +68,7 @@ function Home() {
   const [showCampanias, setShowCampanias]             = useState(false);
   const [showSolicitudes, setShowSolicitudes]         = useState(false);
   const [showAuditoriaCorte, setShowAuditoriaCorte]   = useState(false);
+  const [showZteDesbloqueo, setShowZteDesbloqueo]     = useState(false);
   const [focoMapa, setFocoMapa] = useState<{ lat: number; lng: number; sucursal?: number; etiqueta?: string } | null>(null);
   const [analisisDesde, setAnalisisDesde] = useState("");
   const [analisisHasta, setAnalisisHasta] = useState("");
@@ -81,6 +83,8 @@ function Home() {
 
   const puedeVer = (seccion: string) =>
     !sessionUser || !sessionUser.secciones || sessionUser.secciones.includes(seccion);
+  // Desbloqueo ZTE: acción sensible, restringida a usuarios puntuales (no a toda la sección "dispositivos").
+  const puedeDesbloquearZte = sessionUser?.user === "mromero" || sessionUser?.user === "jarnaudo";
   const tvRef = useRef<HTMLDivElement>(null);
   const reportesRef = useRef<HTMLDivElement>(null);
   const [selectedOrgs, setSelectedOrgs] = useState<string[]>(
@@ -161,7 +165,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); setShowSolicitudes(false); setShowAuditoriaCorte(false); setFocoMapa(null); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); setShowSolicitudes(false); setShowAuditoriaCorte(false); setShowZteDesbloqueo(false); setFocoMapa(null); };
   const goTo = (view: "licencias" | "sucursales") => {
     goHome();
     setShowLicencias(view === "licencias");
@@ -365,7 +369,7 @@ function Home() {
                     </button>
                   )}
 
-                  {(puedeVer("fuentes") || puedeVer("dispositivos")) && <>
+                  {(puedeVer("fuentes") || puedeVer("dispositivos") || puedeDesbloquearZte) && <>
                     <div className="border-t border-slate-800 my-1" />
                     <div className="flex items-center rounded-lg overflow-hidden">
                       <button
@@ -408,6 +412,15 @@ function Home() {
                         >
                           <span className="w-2 h-2 rounded-full flex-shrink-0 bg-cyan-400" />
                           Rastreo de dispositivo
+                        </button>
+                      )}
+                      {puedeDesbloquearZte && (
+                        <button
+                          onClick={() => { goHome(); setShowZteDesbloqueo(true); setShowReportesMenu(false); }}
+                          className={`${menuItem} pl-9 text-xs`}
+                        >
+                          <span className="w-2 h-2 rounded-full flex-shrink-0 bg-rose-400" />
+                          Desbloqueo ZTE
                         </button>
                       )}
                     </>}
@@ -481,8 +494,9 @@ function Home() {
       {showCampanias && <CampaniasWhatsappView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showSolicitudes && <SolicitudesConexionView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} usuarioActual={sessionUser?.user ?? null} restricciones={sessionUser?.solicitudesRestricciones ?? []} />}
       {showAuditoriaCorte && <AuditoriaCorteView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
+      {showZteDesbloqueo && <ZteDesbloqueoView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix || showTVPlanes || showCampanias || showSolicitudes || showAuditoriaCorte ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix || showTVPlanes || showCampanias || showSolicitudes || showAuditoriaCorte || showZteDesbloqueo ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && (puedeVer("tv") || puedeVer("inicio")) && (
