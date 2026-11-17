@@ -69,9 +69,25 @@ export async function ensureTable(pool: Pool) {
       ocupacion                NVARCHAR(100) NULL,
       ambito                   NVARCHAR(15)  NULL,
       precio                   DECIMAL(10,2) NULL,
-      cliente_existente        BIT           NOT NULL DEFAULT 0
+      cliente_existente        BIT           NOT NULL DEFAULT 0,
+      instalada                BIT           NOT NULL DEFAULT 0,
+      instalada_id_conexion    INT           NULL,
+      instalada_usuario        NVARCHAR(100) NULL,
+      instalada_fecha          DATETIME      NULL,
+      no_corresponde           BIT           NOT NULL DEFAULT 0,
+      no_corresponde_motivo    NVARCHAR(300) NULL,
+      no_corresponde_usuario   NVARCHAR(100) NULL,
+      no_corresponde_fecha     DATETIME      NULL
     )
   `);
+  // La cuenta de BD de la app no tiene permiso de ALTER TABLE (solo DML), así que estas columnas
+  // nuevas no se pueden migrar solas en instalaciones existentes: hay que agregarlas a mano una
+  // vez, con una cuenta con más privilegios. instalada_* ya se agregó; falta no_corresponde_*:
+  //   ALTER TABLE analytics_solicitudes_conexion ADD
+  //     no_corresponde BIT NOT NULL DEFAULT 0,
+  //     no_corresponde_motivo NVARCHAR(300) NULL,
+  //     no_corresponde_usuario NVARCHAR(100) NULL,
+  //     no_corresponde_fecha DATETIME NULL;
 }
 
 interface SolicitudInput {

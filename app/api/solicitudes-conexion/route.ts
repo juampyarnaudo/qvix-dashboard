@@ -46,6 +46,14 @@ export interface SolicitudRow {
   ambito: string | null;
   precio: number | null;
   cliente_existente: boolean;
+  instalada: boolean;
+  instalada_id_conexion: number | null;
+  instalada_usuario: string | null;
+  instalada_fecha: string | null;
+  no_corresponde: boolean;
+  no_corresponde_motivo: string | null;
+  no_corresponde_usuario: string | null;
+  no_corresponde_fecha: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -98,6 +106,79 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("[solicitudes-conexion GET]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+const ESTADOS_SOLICITUD = ["pendiente", "registrada", "no_corresponde"] as const;
+type EstadoSolicitud = (typeof ESTADOS_SOLICITUD)[number];
+
+// Cambia el estado de seguimiento de una solicitud: "registrada" la tilda una persona después de
+// confirmar que la conexión real corresponde a esta solicitud puntual (distinto del aviso
+// automático por DNI, que es solo un indicio); "no_corresponde" la descarta con un motivo (ya es
+// cliente, sin cobertura, duplicado, etc.). Queda quién y cuándo para poder auditarlo.
+export async function PATCH(req: NextRequest) {
+  const session = await getSession();
+  if (!session.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  let body: { id?: number; estado?: string; id_conexion?: number | null; motivo?: string | null };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+  const id = Number(body.id);
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "id inválido" }, { status: 400 });
+  if (!ESTADOS_SOLICITUD.includes(body.estado as EstadoSolicitud))
+    return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+  const estado = body.estado as EstadoSolicitud;
+
+  const motivo = typeof body.motivo === "string" ? body.motivo.trim().slice(0, 300) : "";
+  if (estado === "no_corresponde" && !motivo)
+    return NextResponse.json({ error: "Falta el motivo" }, { status: 400 });
+
+  try {
+    const pool = await getPool();
+    await ensureTable(pool);
+
+    const { sucursales: sucursalesPermitidas } = session.user;
+    if (sucursalesPermitidas !== null) {
+      const check = await pool.request().input("id", sql.Int, id).query(`SELECT cod_sucursal FROM ${TABLA} WHERE id = @id`);
+      const cod = check.recordset[0]?.cod_sucursal;
+      if (cod === undefined) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+      if (!sucursalesPermitidas.includes(cod)) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
+    }
+
+    const instalada = estado === "registrada";
+    const noCorresponde = estado === "no_corresponde";
+    const idConexion = instalada && Number.isInteger(body.id_conexion) ? body.id_conexion! : null;
+
+    await pool.request()
+      .input("id", sql.Int, id)
+      .input("instalada", sql.Bit, instalada)
+      .input("id_conexion", sql.Int, idConexion)
+      .input("instalada_usuario", sql.NVarChar(100), instalada ? session.user.user : null)
+      .input("no_corresponde", sql.Bit, noCorresponde)
+      .input("motivo", sql.NVarChar(300), noCorresponde ? motivo : null)
+      .input("no_corresponde_usuario", sql.NVarChar(100), noCorresponde ? session.user.user : null)
+      .query(`
+        UPDATE ${TABLA}
+        SET instalada = @instalada,
+            instalada_id_conexion = @id_conexion,
+            instalada_usuario = @instalada_usuario,
+            instalada_fecha = CASE WHEN @instalada = 1 THEN GETDATE() ELSE NULL END,
+            no_corresponde = @no_corresponde,
+            no_corresponde_motivo = @motivo,
+            no_corresponde_usuario = @no_corresponde_usuario,
+            no_corresponde_fecha = CASE WHEN @no_corresponde = 1 THEN GETDATE() ELSE NULL END
+        WHERE id = @id
+      `);
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("[solicitudes-conexion PATCH]", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 }

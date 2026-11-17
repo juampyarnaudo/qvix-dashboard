@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench, ChevronRight, MessageCircle, Wifi } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench, ChevronRight, MessageCircle, Wifi, CheckCircle2, XCircle } from "lucide-react";
 import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
@@ -51,6 +51,83 @@ interface SolicitudRow {
   lugar_trabajo: string | null;
   ocupacion: string | null;
   ambito: string | null;
+  instalada: boolean;
+  instalada_id_conexion: number | null;
+  instalada_usuario: string | null;
+  instalada_fecha: string | null;
+  no_corresponde: boolean;
+  no_corresponde_motivo: string | null;
+  no_corresponde_usuario: string | null;
+  no_corresponde_fecha: string | null;
+}
+
+const MOTIVOS_NO_CORRESPONDE = ["Ya es cliente activo", "Sin cobertura en la zona", "Datos incorrectos o duplicado", "Cliente desistió"];
+
+interface ConexionExistente {
+  id_conexion: number;
+  nombre: string;
+  documento: string;
+  sucursal: string;
+  estado: string;
+  direccion: string;
+  calle: string | null;
+  numero: string | null;
+  telefono: string | null;
+  fecha_alta: string | null;
+}
+
+// Prefijos de tipo de calle que la gente rara vez escribe en el formulario pero que sí
+// suelen estar en la base (ej. "Av. Ricardo Balbin" vs "Ricardo balbin") — se descartan
+// antes de comparar para no fallar el match solo por eso.
+const PREFIJOS_CALLE = /\b(AV|AVDA|AVENIDA|CALLE|PASAJE|PJE|BV|BOULEVARD|DIAGONAL|DIAG|RUTA)\b/g;
+
+function normalizarDireccion(s: string | null | undefined): string {
+  return (s ?? "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(PREFIJOS_CALLE, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+// Compara el alta de la conexión encontrada contra la fecha de esta solicitud y, si el alta es
+// posterior, contra la dirección pedida: solo con calle y altura coincidentes se puede decir con
+// certeza que esta solicitud se concretó. Si no coincide la dirección, hay una conexión nueva con
+// este documento pero no hay forma de confirmar que sea la que generó esta solicitud puntual.
+function compararAltaVsSolicitud(
+  c: ConexionExistente,
+  solicitud: { fecha_solicitud: string; titular_calle: string | null; titular_numero: string | null; inm_calle: string | null; inm_numero: string | null }
+): { texto: string; color: string } | null {
+  if (!c.fecha_alta) return null;
+  // Comparamos por día calendario, no por hora exacta: un alta unas horas antes dentro del
+  // mismo día no significa que ya tenía servicio, sino que la solicitud se concretó ese día.
+  const altaDia = new Date(c.fecha_alta);
+  altaDia.setHours(0, 0, 0, 0);
+  const solicitudDia = new Date(solicitud.fecha_solicitud);
+  solicitudDia.setHours(0, 0, 0, 0);
+  const dias = Math.round((altaDia.getTime() - solicitudDia.getTime()) / 86400000);
+
+  if (dias < 0) {
+    return { texto: `Ya tenía servicio activo ${Math.abs(dias)} día${Math.abs(dias) === 1 ? "" : "s"} antes de esta solicitud`, color: "text-rose-400" };
+  }
+
+  const calleSolicitud = normalizarDireccion(solicitud.titular_calle ?? solicitud.inm_calle);
+  const numeroSolicitud = normalizarDireccion(solicitud.titular_numero ?? solicitud.inm_numero);
+  const mismaDireccion =
+    calleSolicitud !== "" && calleSolicitud === normalizarDireccion(c.calle) &&
+    numeroSolicitud !== "" && numeroSolicitud === normalizarDireccion(c.numero);
+
+  if (mismaDireccion) {
+    return {
+      texto: dias === 0
+        ? "Misma dirección, alta el mismo día — probablemente esta solicitud ya se concretó"
+        : `Misma dirección, alta ${dias} día${dias === 1 ? "" : "s"} después — probablemente esta solicitud ya se concretó`,
+      color: "text-emerald-400",
+    };
+  }
+  return {
+    texto: "Hay una conexión posterior con este documento, pero en otra dirección — no se puede confirmar que sea esta solicitud",
+    color: "text-amber-400",
+  };
 }
 
 function fmtDireccion(o: {
@@ -171,12 +248,18 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
 
   const [panel, setPanel] = useState<PanelType>(null);
   const [sucSel, setSucSel] = useState<number | null>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState<"pendientes" | "instaladas" | "no_corresponde" | "todas">("pendientes");
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandido, setExpandido] = useState<number | null>(null);
   const [aBorrarSolicitud, setABorrarSolicitud] = useState<SolicitudRow | null>(null);
   const [borrandoSolicitud, setBorrandoSolicitud] = useState(false);
+  const [dniChecks, setDniChecks] = useState<Record<number, { loading: boolean; conexiones?: ConexionExistente[]; error?: string }>>({});
+  const [guardandoEstado, setGuardandoEstado] = useState<Record<number, boolean>>({});
+  const [noCorrespondeForId, setNoCorrespondeForId] = useState<number | null>(null);
+  const [mostrarOtroMotivo, setMostrarOtroMotivo] = useState(false);
+  const [motivoOtro, setMotivoOtro] = useState("");
 
   const [qrTipo, setQrTipo] = useState<"solicitud" | "enlaces">("solicitud");
   const [qrSucursal, setQrSucursal] = useState<number | "universal" | null>(sucursalesDisponibles[0] ?? null);
@@ -313,6 +396,41 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
       setBorrandoSolicitud(false);
     }
   };
+
+  const cambiarEstado = async (r: SolicitudRow, estado: "pendiente" | "registrada" | "no_corresponde", motivo?: string) => {
+    setGuardandoEstado((prev) => ({ ...prev, [r.id]: true }));
+    try {
+      const conexiones = dniChecks[r.id]?.conexiones;
+      const idConexion = estado === "registrada" && conexiones?.length === 1 ? conexiones[0].id_conexion : null;
+      const res = await fetch("/api/solicitudes-conexion", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, estado, id_conexion: idConexion, motivo: motivo ?? null }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setNoCorrespondeForId(null);
+      setMostrarOtroMotivo(false);
+      setMotivoOtro("");
+      await fetchData();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardandoEstado((prev) => ({ ...prev, [r.id]: false }));
+    }
+  };
+
+  const buscarConexionesExistentes = useCallback(async (r: SolicitudRow) => {
+    setDniChecks((prev) => ({ ...prev, [r.id]: { loading: true } }));
+    try {
+      const res = await fetch(`/api/solicitudes-conexion/buscar-dni?documento=${encodeURIComponent(r.titular_numero_documento)}`);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setDniChecks((prev) => ({ ...prev, [r.id]: { loading: false, conexiones: json.conexiones } }));
+    } catch (e: unknown) {
+      setDniChecks((prev) => ({ ...prev, [r.id]: { loading: false, error: e instanceof Error ? e.message : String(e) } }));
+    }
+  }, []);
 
   useEffect(() => {
     if (panel !== "qr") return;
@@ -697,7 +815,14 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
         </div>
       )}
 
-      {data && (
+      {data && (() => {
+        const rowsFiltradas = data.rows.filter((r) => {
+          if (estadoFiltro === "todas") return true;
+          if (estadoFiltro === "instaladas") return r.instalada;
+          if (estadoFiltro === "no_corresponde") return r.no_corresponde;
+          return !r.instalada && !r.no_corresponde;
+        });
+        return (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <StatTile label="Total" value={data.total.toLocaleString("es-AR")} color="#f8fafc" />
@@ -705,6 +830,21 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
             <StatTile label="Doble Play" value={data.conGoTv.toLocaleString("es-AR")} color="#f59e0b" />
             <StatTile label="Por vendedor" value={data.porOrigen.vendedor.toLocaleString("es-AR")} color="#818cf8" />
             <StatTile label="Por QR" value={data.porOrigen.qr.toLocaleString("es-AR")} color="#a855f7" />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {([
+              { key: "pendientes", label: "Pendientes", cantidad: data.rows.filter((r) => !r.instalada && !r.no_corresponde).length },
+              { key: "instaladas", label: "Registradas", cantidad: data.rows.filter((r) => r.instalada).length },
+              { key: "no_corresponde", label: "No corresponde", cantidad: data.rows.filter((r) => r.no_corresponde).length },
+              { key: "todas", label: "Todas", cantidad: data.rows.length },
+            ] as const).map((o) => (
+              <button key={o.key} onClick={() => setEstadoFiltro(o.key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${estadoFiltro === o.key ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-600 text-slate-400 hover:border-emerald-500 hover:text-emerald-300"}`}
+              >
+                {o.label} ({o.cantidad.toLocaleString("es-AR")})
+              </button>
+            ))}
           </div>
 
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
@@ -723,12 +863,16 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((r) => {
+                  {rowsFiltradas.map((r) => {
                     const abierto = expandido === r.id;
                     return (
                       <React.Fragment key={r.id}>
                         <tr
-                          onClick={() => setExpandido(abierto ? null : r.id)}
+                          onClick={() => {
+                            const abriendo = !abierto;
+                            setExpandido(abriendo ? r.id : null);
+                            if (abriendo && !dniChecks[r.id]) buscarConexionesExistentes(r);
+                          }}
                           className="border-b border-slate-800/60 hover:bg-slate-700/20 cursor-pointer"
                         >
                           <td className="py-2 px-3 text-slate-400 whitespace-nowrap">
@@ -814,16 +958,126 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
                                   )}
                                 </div>
                               </div>
-                              {puedeEliminar && (
-                                <div className="flex justify-end mt-3 pt-3 border-t border-slate-800/60">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setABorrarSolicitud(r); }}
-                                    className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 text-xs font-medium transition-colors"
-                                  >
-                                    <Trash2 size={13} /> Eliminar solicitud
-                                  </button>
+                              <div className="mt-3 pt-3 border-t border-slate-800/60 text-xs">
+                                {dniChecks[r.id]?.loading && (
+                                  <p className="flex items-center gap-1.5 text-slate-500">
+                                    <Loader2 size={12} className="animate-spin" /> Buscando conexiones existentes con este documento...
+                                  </p>
+                                )}
+                                {dniChecks[r.id]?.error && (
+                                  <p className="text-rose-400">No se pudo verificar conexiones existentes: {dniChecks[r.id].error}</p>
+                                )}
+                                {dniChecks[r.id]?.conexiones && dniChecks[r.id]!.conexiones!.length === 0 && (
+                                  <p className="text-slate-500">Sin conexiones existentes con este documento.</p>
+                                )}
+                                {dniChecks[r.id]?.conexiones && dniChecks[r.id]!.conexiones!.length > 0 && (
+                                  <div className="space-y-1.5">
+                                    <p className="text-amber-400 font-medium flex items-center gap-1.5">
+                                      <AlertCircle size={13} /> Ya existe{dniChecks[r.id]!.conexiones!.length > 1 ? "n" : ""} {dniChecks[r.id]!.conexiones!.length} conexión{dniChecks[r.id]!.conexiones!.length > 1 ? "es" : ""} con este documento:
+                                    </p>
+                                    <ul className="space-y-1">
+                                      {dniChecks[r.id]!.conexiones!.map((c) => {
+                                        const comparacion = compararAltaVsSolicitud(c, r);
+                                        return (
+                                          <li key={c.id_conexion} className="text-slate-300 bg-slate-800/60 rounded px-2.5 py-1.5">
+                                            <span className="text-slate-500 font-mono text-[11px]">#{c.id_conexion}</span> · <span className="text-slate-200 font-medium">{c.nombre}</span> — {c.estado} · {c.sucursal} · {c.direccion || "sin dirección"}
+                                            {c.telefono && <span className="text-slate-500"> · {c.telefono}</span>}
+                                            {comparacion && <p className={`${comparacion.color} mt-0.5`}>{comparacion.texto}</p>}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="mt-3 pt-3 border-t border-slate-800/60">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {r.instalada ? (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); cambiarEstado(r, "pendiente"); }}
+                                        disabled={guardandoEstado[r.id]}
+                                        title={r.instalada_usuario ? `Marcado por ${r.instalada_usuario}${r.instalada_fecha ? ` el ${fmtFecha(r.instalada_fecha)}` : ""}${r.instalada_id_conexion ? ` · #${r.instalada_id_conexion}` : ""}` : undefined}
+                                        className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border transition-colors disabled:opacity-50 text-emerald-400 border-emerald-800 bg-emerald-900/20 hover:bg-emerald-900/30"
+                                      >
+                                        <CheckCircle2 size={13} /> Registrada
+                                      </button>
+                                    ) : r.no_corresponde ? (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); cambiarEstado(r, "pendiente"); }}
+                                        disabled={guardandoEstado[r.id]}
+                                        title={r.no_corresponde_usuario ? `Marcado por ${r.no_corresponde_usuario}${r.no_corresponde_fecha ? ` el ${fmtFecha(r.no_corresponde_fecha)}` : ""}` : undefined}
+                                        className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border transition-colors disabled:opacity-50 text-rose-400 border-rose-800 bg-rose-900/20 hover:bg-rose-900/30"
+                                      >
+                                        <XCircle size={13} /> No corresponde{r.no_corresponde_motivo ? `: ${r.no_corresponde_motivo}` : ""}
+                                      </button>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); cambiarEstado(r, "registrada"); }}
+                                          disabled={guardandoEstado[r.id]}
+                                          className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border transition-colors disabled:opacity-50 text-slate-500 border-slate-700 hover:text-emerald-300 hover:border-emerald-700"
+                                        >
+                                          <CheckCircle2 size={13} /> Marcar registrada
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setNoCorrespondeForId(noCorrespondeForId === r.id ? null : r.id); setMostrarOtroMotivo(false); setMotivoOtro(""); }}
+                                          disabled={guardandoEstado[r.id]}
+                                          className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border transition-colors disabled:opacity-50 text-slate-500 border-slate-700 hover:text-rose-300 hover:border-rose-700"
+                                        >
+                                          <XCircle size={13} /> No corresponde
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                  {puedeEliminar && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setABorrarSolicitud(r); }}
+                                      className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 text-xs font-medium transition-colors"
+                                    >
+                                      <Trash2 size={13} /> Eliminar solicitud
+                                    </button>
+                                  )}
                                 </div>
-                              )}
+                                {noCorrespondeForId === r.id && (
+                                  <div onClick={(e) => e.stopPropagation()} className="mt-2 flex flex-wrap items-center gap-1.5 bg-slate-900/60 rounded-lg p-2">
+                                    {MOTIVOS_NO_CORRESPONDE.map((m) => (
+                                      <button key={m}
+                                        onClick={() => cambiarEstado(r, "no_corresponde", m)}
+                                        disabled={guardandoEstado[r.id]}
+                                        className="text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+                                      >
+                                        {m}
+                                      </button>
+                                    ))}
+                                    {!mostrarOtroMotivo ? (
+                                      <button
+                                        onClick={() => setMostrarOtroMotivo(true)}
+                                        className="text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full px-2.5 py-1 transition-colors"
+                                      >
+                                        Otra
+                                      </button>
+                                    ) : (
+                                      <span className="flex items-center gap-1.5">
+                                        <input
+                                          autoFocus
+                                          value={motivoOtro}
+                                          onChange={(e) => setMotivoOtro(e.target.value)}
+                                          placeholder="Especificá el motivo"
+                                          className="text-xs bg-slate-900 border border-slate-700 rounded-full px-2.5 py-1 text-slate-200 focus:outline-none focus:border-rose-600 w-48"
+                                        />
+                                        <button
+                                          onClick={() => motivoOtro.trim() && cambiarEstado(r, "no_corresponde", motivoOtro.trim())}
+                                          disabled={!motivoOtro.trim() || guardandoEstado[r.id]}
+                                          className="text-xs font-medium text-white bg-rose-600 hover:bg-rose-500 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+                                        >
+                                          Confirmar
+                                        </button>
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         )}
@@ -832,8 +1086,14 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
                   })}
                 </tbody>
               </table>
-              {data.rows.length === 0 && (
-                <p className="text-center text-slate-500 text-sm py-8">Todavía no hay solicitudes cargadas.</p>
+              {rowsFiltradas.length === 0 && (
+                <p className="text-center text-slate-500 text-sm py-8">
+                  {data.rows.length === 0
+                    ? "Todavía no hay solicitudes cargadas."
+                    : estadoFiltro === "instaladas" ? "Todavía no hay solicitudes marcadas como registradas."
+                    : estadoFiltro === "no_corresponde" ? "Todavía no hay solicitudes marcadas como \"no corresponde\"."
+                    : "No hay solicitudes pendientes."}
+                </p>
               )}
               {data.total > 500 && (
                 <p className="text-center text-slate-500 text-xs py-3">
@@ -843,7 +1103,8 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas,
             </div>
           </div>
         </>
-      )}
+        );
+      })()}
 
       {aBorrarSolicitud && (
         <ConfirmModal
