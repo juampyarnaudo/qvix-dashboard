@@ -222,6 +222,7 @@ export default function SolicitudPublicaForm({
     if (!form.titular_apellido_nombre.trim()) return setError("Falta tu nombre completo.");
     if (!form.titular_numero_documento.trim()) return setError("Falta tu número de documento.");
     if (!form.titular_telefono.trim()) return setError("Falta un teléfono para contactarte.");
+    if (!soloTv && (form.inm_lat === null || form.inm_lng === null)) return setError("Marcá la ubicación de instalación en el mapa.");
     const planSeleccionado = planesFiltrados.find((p) => p.nombre === form.velocidad);
     if (soloTv && !planSeleccionado) return setError("Elegí el plan de TV.");
     const velocidadFinal = form.velocidad === "Otra" ? form.velocidadOtra.trim() : form.velocidad;
@@ -578,7 +579,7 @@ export default function SolicitudPublicaForm({
         {/* Domicilio */}
         {!soloTv && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-          <h2 className="text-slate-900 font-extrabold text-base">¿Dónde instalamos?</h2>
+          <h2 className="text-slate-900 font-extrabold text-base">¿Dónde instalamos?<span className="text-rose-500 ml-0.5">*</span></h2>
           <UbicacionMapPicker
             lat={form.inm_lat}
             lng={form.inm_lng}

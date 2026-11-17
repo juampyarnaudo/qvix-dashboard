@@ -253,6 +253,10 @@ export async function POST(req: NextRequest) {
 
   const inm_lat = typeof body.inm_lat === "number" && Number.isFinite(body.inm_lat) && Math.abs(body.inm_lat) <= 90 ? body.inm_lat : null;
   const inm_lng = typeof body.inm_lng === "number" && Number.isFinite(body.inm_lng) && Math.abs(body.inm_lng) <= 180 ? body.inm_lng : null;
+  // La ubicación en el mapa es obligatoria desde ahora — salvo para quien ya es cliente y solo
+  // pide TV, que no necesita una instalación nueva (no se le pide dirección en el formulario).
+  if (!clienteExistente && (inm_lat === null || inm_lng === null))
+    return NextResponse.json({ error: "Marcá la ubicación de instalación en el mapa" }, { status: 400 });
   // Precio del plan elegido al momento de la solicitud — se guarda como "foto" de ese instante,
   // para que no cambie retroactivamente si después se edita el precio del plan.
   const precio = typeof body.precio === "number" && Number.isFinite(body.precio) && body.precio >= 0 ? body.precio : null;
